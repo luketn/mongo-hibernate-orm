@@ -3,6 +3,7 @@ package com.luketn.crystalshop;
 import com.luketn.crystalshop.http.CrystalShopServer;
 import com.luketn.crystalshop.persistence.HibernateSupport;
 import com.luketn.crystalshop.service.CrystalShopService;
+import com.luketn.crystalshop.service.CrystalShopReportingService;
 import org.hibernate.SessionFactory;
 
 import java.net.URI;
@@ -19,7 +20,8 @@ public final class CrystalShopApplication implements AutoCloseable {
     public static CrystalShopApplication start(AppConfig config) {
         SessionFactory sessionFactory = HibernateSupport.createSessionFactory(config);
         CrystalShopService service = new CrystalShopService(sessionFactory);
-        CrystalShopServer server = CrystalShopServer.start(config.port(), service);
+        CrystalShopReportingService reportingService = new CrystalShopReportingService(sessionFactory);
+        CrystalShopServer server = CrystalShopServer.start(config.port(), service, reportingService);
         return new CrystalShopApplication(sessionFactory, server);
     }
 

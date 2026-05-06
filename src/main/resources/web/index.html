@@ -23,7 +23,7 @@
 
     <nav id="tabs" class="tabs" aria-label="Resources"></nav>
 
-    <main class="workspace">
+    <main id="crudWorkspace" class="workspace">
       <section class="data-panel" aria-labelledby="resourceTitle">
         <div class="panel-header">
           <div>
@@ -57,6 +57,78 @@
         </form>
         <div id="status" class="status" role="status" aria-live="polite"></div>
       </aside>
+    </main>
+
+    <main id="reportWorkspace" class="report-workspace" hidden>
+      <section class="report-panel report-heading" aria-labelledby="reportTitle">
+        <div>
+          <h2 id="reportTitle">Annual Sales Report</h2>
+          <p id="reportMeta">2025 with 2026 projections</p>
+        </div>
+        <form id="reportForm" class="report-controls">
+          <label for="reportYear">Year</label>
+          <input id="reportYear" name="reportYear" type="number" min="2000" max="2100" step="1" value="2025">
+          <button type="submit" class="button primary">Run Report</button>
+        </form>
+      </section>
+
+      <section id="reportTotals" class="metric-grid" aria-label="Annual totals"></section>
+
+      <section class="report-grid">
+        <div class="report-panel chart-panel">
+          <div class="panel-header compact">
+            <div>
+              <h2>Weekly Sales Trends</h2>
+              <p>Revenue by crystal</p>
+            </div>
+          </div>
+          <div id="weeklyChart" class="chart-box" aria-label="Weekly sales trends line chart"></div>
+        </div>
+
+        <div class="report-panel chart-panel">
+          <div class="panel-header compact">
+            <div>
+              <h2>Monthly Retention</h2>
+              <p>Customers gained and lost</p>
+            </div>
+          </div>
+          <div id="retentionChart" class="chart-box" aria-label="Monthly retention bar chart"></div>
+        </div>
+      </section>
+
+      <section class="report-grid">
+        <div class="report-panel">
+          <div class="panel-header compact">
+            <div>
+              <h2>Best Sellers</h2>
+              <p>Top products by annual revenue</p>
+            </div>
+          </div>
+          <div id="bestSellers" class="report-table"></div>
+        </div>
+
+        <div class="report-panel">
+          <div class="panel-header compact">
+            <div>
+              <h2>2026 Forecast</h2>
+              <p>Projected product demand</p>
+            </div>
+          </div>
+          <div id="forecastTable" class="report-table"></div>
+        </div>
+      </section>
+
+      <section class="report-panel">
+        <div class="panel-header compact">
+          <div>
+            <h2>Recommendations</h2>
+            <p>Operational actions from the report</p>
+          </div>
+        </div>
+        <ul id="recommendations" class="recommendations"></ul>
+      </section>
+
+      <div id="reportStatus" class="status" role="status" aria-live="polite"></div>
     </main>
   </div>
 

@@ -81,7 +81,7 @@ class CrystalShopPlaywrightTest {
             assertThat(page).hasTitle(Pattern.compile("Crystal Shop"));
             assertThat(page.getByRole(AriaRole.HEADING, options("Crystal Shop"))).isVisible();
             clickButton(page, "Refresh");
-            assertRecordCount(page, "Crystals", "4 records");
+            assertRecordCount(page, "Crystals", "8 records");
             assertThat(page.getByText("Amethyst Cluster")).isVisible();
 
             exerciseCrystalFlow(page);
@@ -101,12 +101,13 @@ class CrystalShopPlaywrightTest {
             clickTab(page, "Sales");
             assertTableContains(page, "mira.chen@example.com");
             assertTableContains(page, "SEL-003 x3");
+            exerciseReportFlow(page);
         }
     }
 
     private void exerciseCrystalFlow(Page page) {
         clickTab(page, "Crystals");
-        assertRecordCount(page, "Crystals", "4 records");
+        assertRecordCount(page, "Crystals", "8 records");
         clickButton(page, "New");
         fill(page, "SKU", "FLU-888");
         fill(page, "Name", "Fluorite Octahedron");
@@ -114,39 +115,41 @@ class CrystalShopPlaywrightTest {
         fill(page, "Color", "Green");
         fill(page, "Origin", "China");
         fill(page, "Retail Price", "22.40");
+        fill(page, "Wholesale Cost", "9.25");
         clickButton(page, "Save");
         assertStatus(page, "Crystal saved.");
-        assertRecordCount(page, "Crystals", "5 records");
+        assertRecordCount(page, "Crystals", "9 records");
         assertThat(page.getByText("Fluorite Octahedron")).isVisible();
 
         fill(page, "Color", "Green and purple");
         fill(page, "Retail Price", "24.10");
+        fill(page, "Wholesale Cost", "10.05");
         clickButton(page, "Save");
         assertStatus(page, "Crystal saved.");
-        assertThat(page.getByText("Green and purple")).isVisible();
+        assertThat(rowWithText(page, "FLU-888")).containsText("Green and purple");
 
         page.onceDialog(dialog -> dialog.accept());
         page.locator("#deleteButton").click();
         assertStatus(page, "Crystal deleted.");
-        assertRecordCount(page, "Crystals", "4 records");
+        assertRecordCount(page, "Crystals", "8 records");
         assertThat(page.getByText("Fluorite Octahedron")).not().isVisible();
     }
 
     private void exerciseCustomerFlow(Page page) {
         clickTab(page, "Customers");
-        assertRecordCount(page, "Customers", "3 records");
+        assertRecordCount(page, "Customers", "10 records");
         clickButton(page, "New");
         fill(page, "Name", "Lina Torres");
         fill(page, "Email", "lina.torres@example.com");
         fill(page, "Loyalty Tier", "BRONZE");
         clickButton(page, "Save");
         assertStatus(page, "Customer saved.");
-        assertRecordCount(page, "Customers", "4 records");
+        assertRecordCount(page, "Customers", "11 records");
 
         fill(page, "Loyalty Tier", "GOLD");
         clickButton(page, "Save");
         assertStatus(page, "Customer saved.");
-        assertThat(page.getByText("GOLD")).isVisible();
+        assertThat(rowWithText(page, "lina.torres@example.com")).containsText("GOLD");
 
         clickButton(page, "Clear");
         assertThat(page.getByRole(AriaRole.HEADING, options("New Customer"))).isVisible();
@@ -154,13 +157,13 @@ class CrystalShopPlaywrightTest {
         page.onceDialog(dialog -> dialog.accept());
         page.locator("#deleteButton").click();
         assertStatus(page, "Customer deleted.");
-        assertRecordCount(page, "Customers", "3 records");
+        assertRecordCount(page, "Customers", "10 records");
         assertThat(page.getByText("lina.torres@example.com")).not().isVisible();
     }
 
     private void exerciseStoreFlow(Page page) {
         clickTab(page, "Stores");
-        assertRecordCount(page, "Stores", "2 records");
+        assertRecordCount(page, "Stores", "3 records");
         clickButton(page, "New");
         fill(page, "Code", "PER-GEM");
         fill(page, "Name", "Gem Hall");
@@ -168,7 +171,7 @@ class CrystalShopPlaywrightTest {
         fill(page, "Address", "9 Hay Street, Perth WA");
         clickButton(page, "Save");
         assertStatus(page, "Store saved.");
-        assertRecordCount(page, "Stores", "3 records");
+        assertRecordCount(page, "Stores", "4 records");
 
         fill(page, "City", "Fremantle");
         clickButton(page, "Save");
@@ -178,13 +181,13 @@ class CrystalShopPlaywrightTest {
         page.onceDialog(dialog -> dialog.accept());
         page.locator("#deleteButton").click();
         assertStatus(page, "Store deleted.");
-        assertRecordCount(page, "Stores", "2 records");
+        assertRecordCount(page, "Stores", "3 records");
         assertThat(page.getByText("PER-GEM")).not().isVisible();
     }
 
     private void exerciseInventoryFlow(Page page) {
         clickTab(page, "Inventory");
-        assertRecordCount(page, "Inventory", "5 records");
+        assertRecordCount(page, "Inventory", "18 records");
         clickButton(page, "New");
         select(page, "Store", "SYD-DAWN - Dawnlight Crystals");
         select(page, "Crystal", "LAB-004 - Labradorite Palm Stone");
@@ -192,7 +195,7 @@ class CrystalShopPlaywrightTest {
         fill(page, "Shelf Location", "Z9");
         clickButton(page, "Save");
         assertStatus(page, "Inventory Item saved.");
-        assertRecordCount(page, "Inventory", "6 records");
+        assertRecordCount(page, "Inventory", "19 records");
         assertThat(page.getByText("Z9")).isVisible();
 
         fill(page, "Quantity", "4");
@@ -204,13 +207,13 @@ class CrystalShopPlaywrightTest {
         page.onceDialog(dialog -> dialog.accept());
         page.locator("#deleteButton").click();
         assertStatus(page, "Inventory Item deleted.");
-        assertRecordCount(page, "Inventory", "5 records");
+        assertRecordCount(page, "Inventory", "18 records");
         assertThat(page.getByText("Z10")).not().isVisible();
     }
 
     private void exerciseSaleFlow(Page page) {
         clickTab(page, "Sales");
-        assertRecordCount(page, "Sales", "3 records");
+        assertRecordCount(page, "Sales", "39 records");
 
         rowWithText(page, "SEL-003 x2").click();
         assertThat(page.locator(".sale-line-row")).hasCount(2);
@@ -236,7 +239,7 @@ class CrystalShopPlaywrightTest {
         fillInLine(page, 1, "Unit Price", "18.00");
         clickButton(page, "Save");
         assertStatus(page, "Sale saved.");
-        assertRecordCount(page, "Sales", "4 records");
+        assertRecordCount(page, "Sales", "40 records");
         assertThat(page.getByText("2026-04-24T11:15")).isVisible();
         assertTableContains(page, "AME-001 x1, SEL-003 x2");
 
@@ -248,18 +251,36 @@ class CrystalShopPlaywrightTest {
         clickButton(page, "Save");
         assertStatus(page, "Sale saved.");
         assertThat(page.getByText("2026-04-24T12:45")).isVisible();
-        assertThat(page.getByText("95.00")).isVisible();
+        assertThat(rowWithText(page, "2026-04-24T12:45")).containsText("95.00");
 
         page.onceDialog(dialog -> dialog.accept());
         page.locator("#deleteButton").click();
         assertStatus(page, "Sale deleted.");
-        assertRecordCount(page, "Sales", "3 records");
+        assertRecordCount(page, "Sales", "39 records");
         assertThat(page.getByText("2026-04-24T12:45")).not().isVisible();
+    }
+
+    private void exerciseReportFlow(Page page) {
+        clickTab(page, "Reports");
+        assertThat(page.getByRole(AriaRole.HEADING, options("Annual Sales Report"))).isVisible();
+        assertThat(page.locator("#reportTotals")).containsText("Revenue");
+        assertThat(page.locator("#reportTotals")).containsText("Profit");
+        assertThat(page.locator("#reportTotals")).containsText("Costs");
+        assertThat(page.locator("#weeklyChart svg")).isVisible();
+        assertThat(page.locator("#retentionChart svg")).isVisible();
+        assertThat(page.locator("#bestSellers")).containsText("SKU");
+        assertThat(page.locator("#forecastTable")).containsText("2026 Revenue");
+        assertThat(page.locator("#recommendations")).containsText("Prioritise");
+
+        fill(page, "Year", "2025");
+        clickButton(page, "Run Report");
+        assertThat(page.locator("#reportStatus")).hasText("Report loaded for 2025.");
     }
 
     private void clickTab(Page page, String name) {
         page.locator(".tab", new Page.LocatorOptions().setHasText(name)).click();
-        assertThat(page.getByRole(AriaRole.HEADING, options(name))).isVisible();
+        String heading = "Reports".equals(name) ? "Annual Sales Report" : name;
+        assertThat(page.getByRole(AriaRole.HEADING, options(heading))).isVisible();
     }
 
     private void clickButton(Page page, String name) {

@@ -56,7 +56,8 @@ public class CrystalShopService {
                     requiredText(request.family(), "family"),
                     requiredText(request.color(), "color"),
                     requiredText(request.origin(), "origin"),
-                    requiredDecimal(request.retailPrice(), "retailPrice")
+                    requiredDecimal(request.retailPrice(), "retailPrice"),
+                    requiredDecimal(request.wholesaleCost(), "wholesaleCost")
             );
             session.persist(crystal);
             session.flush();
@@ -84,6 +85,9 @@ public class CrystalShopService {
             }
             if (request.retailPrice() != null) {
                 crystal.setRetailPrice(requiredDecimal(request.retailPrice(), "retailPrice"));
+            }
+            if (request.wholesaleCost() != null) {
+                crystal.setWholesaleCost(requiredDecimal(request.wholesaleCost(), "wholesaleCost"));
             }
             session.flush();
             return CrystalView.from(crystal);

@@ -8,6 +8,7 @@ public record CrystalRequest(
         String family,
         String color,
         String origin,
-        BigDecimal retailPrice
+        BigDecimal retailPrice,
+        BigDecimal wholesaleCost
 ) {
 }

@@ -46,7 +46,8 @@ final class SampleDataImporter {
                     seed.family(),
                     seed.color(),
                     seed.origin(),
-                    seed.retailPrice()
+                    seed.retailPrice(),
+                    seed.wholesaleCost()
             );
             session.persist(crystal);
             crystals.put(crystal.getSku(), crystal);
@@ -160,7 +161,8 @@ final class SampleDataImporter {
             String family,
             String color,
             String origin,
-            BigDecimal retailPrice
+            BigDecimal retailPrice,
+            BigDecimal wholesaleCost
     ) {
     }
 

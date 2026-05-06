@@ -8,6 +8,7 @@ import com.luketn.crystalshop.domain.api.InventoryItemRequest;
 import com.luketn.crystalshop.domain.api.SaleRequest;
 import com.luketn.crystalshop.domain.api.StoreRequest;
 import com.luketn.crystalshop.service.CrystalShopService;
+import com.luketn.crystalshop.service.CrystalShopReportingService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -16,6 +17,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,12 +34,16 @@ public final class CrystalShopServer implements AutoCloseable {
         this.executor = executor;
     }
 
-    public static CrystalShopServer start(int port, CrystalShopService service) {
+    public static CrystalShopServer start(
+            int port,
+            CrystalShopService service,
+            CrystalShopReportingService reportingService
+    ) {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
             ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
             server.setExecutor(executor);
-            server.createContext("/", new Router(service));
+            server.createContext("/", new Router(service, reportingService));
             server.start();
             return new CrystalShopServer(server, executor);
         } catch (IOException e) {
@@ -57,10 +63,12 @@ public final class CrystalShopServer implements AutoCloseable {
 
     private static final class Router implements com.sun.net.httpserver.HttpHandler {
         private final CrystalShopService service;
+        private final CrystalShopReportingService reportingService;
         private final ObjectMapper mapper = JsonSupport.createMapper();
 
-        private Router(CrystalShopService service) {
+        private Router(CrystalShopService service, CrystalShopReportingService reportingService) {
             this.service = service;
+            this.reportingService = reportingService;
         }
 
         @Override
@@ -107,6 +115,13 @@ public final class CrystalShopServer implements AutoCloseable {
                     default -> {
                     }
                 }
+            }
+
+            if ("GET".equals(method) && segments.size() == 2
+                    && "reports".equals(segments.getFirst())
+                    && "annual-sales".equals(segments.get(1))) {
+                writeJson(exchange, 200, reportingService.annualSalesReport(parseYear(exchange.getRequestURI())));
+                return;
             }
 
             if (segments.size() > 2) {
@@ -288,6 +303,26 @@ public final class CrystalShopServer implements AutoCloseable {
             }
         }
 
+        private int parseYear(URI uri) {
+            String query = uri.getRawQuery();
+            if (query == null || query.isBlank()) {
+                return LocalDate.now().getYear();
+            }
+            for (String pair : query.split("&")) {
+                int equals = pair.indexOf('=');
+                String key = equals >= 0 ? pair.substring(0, equals) : pair;
+                if ("year".equals(key)) {
+                    String value = equals >= 0 ? pair.substring(equals + 1) : "";
+                    try {
+                        return Integer.parseInt(value);
+                    } catch (NumberFormatException e) {
+                        throw new ApiException(400, "year must be an integer");
+                    }
+                }
+            }
+            return LocalDate.now().getYear();
+        }
+
         private ApiException methodNotAllowed() {
             return new ApiException(405, "Method is not allowed for this endpoint");
         }
@@ -299,6 +334,7 @@ public final class CrystalShopServer implements AutoCloseable {
             routes.put("stores", "GET|POST /stores, GET|PUT|DELETE /stores/{id}");
             routes.put("inventory", "GET|POST /inventory, GET|PUT|DELETE /inventory/{id}");
             routes.put("sales", "GET|POST /sales, GET|PUT|DELETE /sales/{id}");
+            routes.put("reports", "GET /reports/annual-sales?year={year}");
             return routes;
         }
 

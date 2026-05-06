@@ -11,7 +11,8 @@ public record CrystalView(
         String family,
         String color,
         String origin,
-        BigDecimal retailPrice
+        BigDecimal retailPrice,
+        BigDecimal wholesaleCost
 ) {
     public static CrystalView from(Crystal crystal) {
         return new CrystalView(
@@ -21,7 +22,8 @@ public record CrystalView(
                 crystal.getFamily(),
                 crystal.getColor(),
                 crystal.getOrigin(),
-                crystal.getRetailPrice()
+                crystal.getRetailPrice(),
+                crystal.getWholesaleCost()
         );
     }
 }

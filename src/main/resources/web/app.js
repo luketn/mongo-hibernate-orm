@@ -3,14 +3,15 @@ const resources = {
     label: "Crystals",
     singular: "Crystal",
     endpoint: "/crystals",
-    columns: ["id", "sku", "name", "family", "color", "origin", "retailPrice"],
+    columns: ["id", "sku", "name", "family", "color", "origin", "retailPrice", "wholesaleCost"],
     fields: [
       { key: "sku", label: "SKU", required: true },
       { key: "name", label: "Name", required: true },
       { key: "family", label: "Family", required: true },
       { key: "color", label: "Color", required: true },
       { key: "origin", label: "Origin", required: true },
-      { key: "retailPrice", label: "Retail Price", type: "number", step: "0.01", required: true }
+      { key: "retailPrice", label: "Retail Price", type: "number", step: "0.01", required: true },
+      { key: "wholesaleCost", label: "Wholesale Cost", type: "number", step: "0.01", required: true }
     ]
   },
   customers: {
@@ -64,12 +65,18 @@ const resources = {
 const state = {
   current: "crystals",
   selectedId: null,
-  data: {}
+  data: {},
+  reportYear: 2025,
+  report: null
 };
 
-const moneyColumns = new Set(["retailPrice", "unitPrice", "lineTotal", "total"]);
+const moneyColumns = new Set(["retailPrice", "wholesaleCost", "unitPrice", "lineTotal", "total"]);
+const reportTabKey = "reports";
+const chartColors = ["#176b5d", "#b76622", "#4c6f9f", "#7a4d8f", "#2f7f3d", "#9c3d58", "#6e6a2f", "#3e7378"];
 
 const tabs = document.getElementById("tabs");
+const crudWorkspace = document.getElementById("crudWorkspace");
+const reportWorkspace = document.getElementById("reportWorkspace");
 const tableHead = document.getElementById("tableHead");
 const tableBody = document.getElementById("tableBody");
 const resourceTitle = document.getElementById("resourceTitle");
@@ -80,12 +87,23 @@ const fields = document.getElementById("fields");
 const editorForm = document.getElementById("editorForm");
 const deleteButton = document.getElementById("deleteButton");
 const statusBox = document.getElementById("status");
+const reportForm = document.getElementById("reportForm");
+const reportYear = document.getElementById("reportYear");
+const reportMeta = document.getElementById("reportMeta");
+const reportTotals = document.getElementById("reportTotals");
+const weeklyChart = document.getElementById("weeklyChart");
+const retentionChart = document.getElementById("retentionChart");
+const bestSellers = document.getElementById("bestSellers");
+const forecastTable = document.getElementById("forecastTable");
+const recommendations = document.getElementById("recommendations");
+const reportStatus = document.getElementById("reportStatus");
 
 document.getElementById("refreshButton").addEventListener("click", refreshAll);
 document.getElementById("newButton").addEventListener("click", clearForm);
 document.getElementById("clearButton").addEventListener("click", clearForm);
 deleteButton.addEventListener("click", deleteSelected);
 editorForm.addEventListener("submit", saveForm);
+reportForm.addEventListener("submit", runReport);
 
 renderTabs();
 refreshAll();
@@ -105,30 +123,75 @@ function renderTabs() {
     });
     tabs.append(button);
   });
+
+  const reportButton = document.createElement("button");
+  reportButton.type = "button";
+  reportButton.className = state.current === reportTabKey ? "tab active" : "tab";
+  reportButton.textContent = "Reports";
+  reportButton.addEventListener("click", () => {
+    state.current = reportTabKey;
+    state.selectedId = null;
+    renderTabs();
+    renderCurrent();
+  });
+  tabs.append(reportButton);
 }
 
 async function refreshAll() {
   setStatus("Loading data...", "");
+  setReportStatus("Loading report...", "");
   try {
-    const entries = await Promise.all(Object.entries(resources).map(async ([key, config]) => {
-      const rows = await api(config.endpoint);
-      return [key, rows];
-    }));
+    const [entries, report] = await Promise.all([
+      Promise.all(Object.entries(resources).map(async ([key, config]) => {
+        const rows = await api(config.endpoint);
+        return [key, rows];
+      })),
+      fetchReport()
+    ]);
     state.data = Object.fromEntries(entries);
+    state.report = report;
     renderCurrent();
     setStatus("Data loaded.", "ok");
+    setReportStatus(`Report loaded for ${state.reportYear}.`, "ok");
   } catch (error) {
     setStatus(error.message, "error");
+    setReportStatus(error.message, "error");
   }
 }
 
 function renderCurrent() {
+  if (state.current === reportTabKey) {
+    crudWorkspace.hidden = true;
+    reportWorkspace.hidden = false;
+    renderReport();
+    return;
+  }
+
+  crudWorkspace.hidden = false;
+  reportWorkspace.hidden = true;
   const config = resources[state.current];
   const rows = state.data[state.current] || [];
   resourceTitle.textContent = config.label;
   recordCount.textContent = `${rows.length} ${rows.length === 1 ? "record" : "records"}`;
   renderTable(config, rows);
   renderForm(config, selectedRow());
+}
+
+async function runReport(event) {
+  event.preventDefault();
+  state.reportYear = Number.parseInt(reportYear.value, 10);
+  setReportStatus("Loading report...", "");
+  try {
+    state.report = await fetchReport();
+    renderReport();
+    setReportStatus(`Report loaded for ${state.reportYear}.`, "ok");
+  } catch (error) {
+    setReportStatus(error.message, "error");
+  }
+}
+
+async function fetchReport() {
+  return api(`/reports/annual-sales?year=${encodeURIComponent(state.reportYear)}`);
 }
 
 function renderTable(config, rows) {
@@ -445,6 +508,277 @@ function saleLinePayload(form) {
   }));
 }
 
+function renderReport() {
+  reportYear.value = state.reportYear;
+  const report = state.report;
+  if (!report) {
+    reportMeta.textContent = "No report loaded";
+    reportTotals.replaceChildren();
+    weeklyChart.textContent = "No report data";
+    retentionChart.textContent = "No report data";
+    bestSellers.replaceChildren();
+    forecastTable.replaceChildren();
+    recommendations.replaceChildren();
+    return;
+  }
+
+  reportMeta.textContent = `${report.year} with ${report.forecastYear} projections`;
+  renderReportTotals(report.totals);
+  renderWeeklyChart(report.weeklySalesTrends || []);
+  renderRetentionChart(report.monthlyCustomerRetention || []);
+  renderBestSellers(report.bestSellingProducts || []);
+  renderForecasts(report.forecasts || [], report.forecastYear);
+  renderRecommendations(report.recommendations || []);
+}
+
+function renderReportTotals(totals) {
+  const metrics = [
+    ["Revenue", formatMoney(totals.revenue)],
+    ["Profit", formatMoney(totals.profit)],
+    ["Costs", formatMoney(totals.costs)],
+    ["Units Sold", String(totals.unitsSold)],
+    ["Sales", String(totals.salesCount)],
+    ["Active Customers", String(totals.activeCustomers)]
+  ];
+
+  reportTotals.replaceChildren(...metrics.map(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "metric-card";
+    const metricLabel = document.createElement("span");
+    metricLabel.textContent = label;
+    const metricValue = document.createElement("strong");
+    metricValue.textContent = value;
+    item.append(metricLabel, metricValue);
+    return item;
+  }));
+}
+
+function renderWeeklyChart(rows) {
+  weeklyChart.replaceChildren();
+  if (rows.length === 0) {
+    weeklyChart.textContent = "No weekly sales for this year.";
+    return;
+  }
+
+  const weeks = [...new Set(rows.map(row => row.weekStart))].sort();
+  const crystals = [...new Map(rows.map(row => [row.crystalSku, row.crystalName])).entries()];
+  const revenueByCrystal = new Map();
+  rows.forEach(row => {
+    const crystalRows = revenueByCrystal.get(row.crystalSku) || new Map();
+    crystalRows.set(row.weekStart, Number(row.revenue || 0));
+    revenueByCrystal.set(row.crystalSku, crystalRows);
+  });
+
+  const width = 960;
+  const height = 330;
+  const margin = { top: 22, right: 24, bottom: 48, left: 62 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+  const maxRevenue = Math.max(1, ...rows.map(row => Number(row.revenue || 0)));
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.append(svgEl("line", {
+    x1: margin.left,
+    y1: margin.top + chartHeight,
+    x2: margin.left + chartWidth,
+    y2: margin.top + chartHeight,
+    class: "chart-axis"
+  }));
+  svg.append(svgEl("line", {
+    x1: margin.left,
+    y1: margin.top,
+    x2: margin.left,
+    y2: margin.top + chartHeight,
+    class: "chart-axis"
+  }));
+
+  const tickCount = 4;
+  for (let tick = 0; tick <= tickCount; tick += 1) {
+    const value = maxRevenue * tick / tickCount;
+    const y = margin.top + chartHeight - (value / maxRevenue) * chartHeight;
+    svg.append(svgEl("line", {
+      x1: margin.left,
+      y1: y,
+      x2: margin.left + chartWidth,
+      y2: y,
+      class: "chart-grid"
+    }));
+    const label = svgEl("text", { x: margin.left - 8, y: y + 4, class: "chart-label", "text-anchor": "end" });
+    label.textContent = compactMoney(value);
+    svg.append(label);
+  }
+
+  weeks.forEach((week, index) => {
+    if (index % Math.max(1, Math.ceil(weeks.length / 8)) !== 0 && index !== weeks.length - 1) {
+      return;
+    }
+    const x = xForIndex(index, weeks.length, margin.left, chartWidth);
+    const label = svgEl("text", {
+      x,
+      y: height - 18,
+      class: "chart-label",
+      "text-anchor": "middle"
+    });
+    label.textContent = week.slice(5);
+    svg.append(label);
+  });
+
+  crystals.forEach(([sku], index) => {
+    const color = chartColors[index % chartColors.length];
+    const points = weeks.map((week, weekIndex) => {
+      const revenue = revenueByCrystal.get(sku)?.get(week) || 0;
+      const x = xForIndex(weekIndex, weeks.length, margin.left, chartWidth);
+      const y = margin.top + chartHeight - (revenue / maxRevenue) * chartHeight;
+      return `${x},${y}`;
+    }).join(" ");
+    svg.append(svgEl("polyline", {
+      points,
+      fill: "none",
+      stroke: color,
+      "stroke-width": 3,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round"
+    }));
+  });
+
+  const legend = document.createElement("div");
+  legend.className = "chart-legend";
+  legend.replaceChildren(...crystals.map(([sku, name], index) => legendItem(sku, name, chartColors[index % chartColors.length])));
+  weeklyChart.append(svg, legend);
+}
+
+function renderRetentionChart(rows) {
+  retentionChart.replaceChildren();
+  if (rows.length === 0) {
+    retentionChart.textContent = "No retention data for this year.";
+    return;
+  }
+
+  const width = 860;
+  const height = 300;
+  const margin = { top: 24, right: 20, bottom: 42, left: 44 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+  const maxCustomers = Math.max(1, ...rows.map(row => Number(row.customersGained || 0) + Number(row.customersLost || 0)));
+  const barSlot = chartWidth / rows.length;
+  const barWidth = Math.max(18, barSlot * 0.58);
+  const baseY = margin.top + chartHeight;
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${width} ${height}`, role: "img" });
+  svg.append(svgEl("line", {
+    x1: margin.left,
+    y1: baseY,
+    x2: margin.left + chartWidth,
+    y2: baseY,
+    class: "chart-axis"
+  }));
+
+  rows.forEach((row, index) => {
+    const gained = Number(row.customersGained || 0);
+    const lost = Number(row.customersLost || 0);
+    const gainedHeight = gained / maxCustomers * chartHeight;
+    const lostHeight = lost / maxCustomers * chartHeight;
+    const x = margin.left + index * barSlot + (barSlot - barWidth) / 2;
+    const gainedY = baseY - gainedHeight;
+    const lostY = gainedY - lostHeight;
+
+    svg.append(svgEl("rect", {
+      x,
+      y: gainedY,
+      width: barWidth,
+      height: gainedHeight,
+      class: "bar-gained"
+    }));
+    svg.append(svgEl("rect", {
+      x,
+      y: lostY,
+      width: barWidth,
+      height: lostHeight,
+      class: "bar-lost"
+    }));
+
+    const label = svgEl("text", {
+      x: x + barWidth / 2,
+      y: height - 16,
+      class: "chart-label",
+      "text-anchor": "middle"
+    });
+    label.textContent = row.month.slice(5);
+    svg.append(label);
+  });
+
+  const legend = document.createElement("div");
+  legend.className = "chart-legend";
+  legend.append(legendItem("Gained", "Customers first seen", "#2f8a4b"));
+  legend.append(legendItem("Lost", "Inactive after previous month", "#a33b3b"));
+  retentionChart.append(svg, legend);
+}
+
+function renderBestSellers(rows) {
+  renderReportTable(bestSellers, [
+    ["SKU", row => row.crystalSku],
+    ["Product", row => row.crystalName],
+    ["Units", row => row.unitsSold],
+    ["Revenue", row => formatMoney(row.revenue)],
+    ["Profit", row => formatMoney(row.profit)],
+    ["Margin", row => formatPercent(row.margin)]
+  ], rows);
+}
+
+function renderForecasts(rows, forecastYear) {
+  renderReportTable(forecastTable, [
+    ["SKU", row => row.crystalSku],
+    ["Product", row => row.crystalName],
+    [`${forecastYear} Units`, row => row.projectedUnits],
+    [`${forecastYear} Revenue`, row => formatMoney(row.projectedRevenue)],
+    ["Growth", row => formatPercent(row.growthRate)]
+  ], rows);
+}
+
+function renderReportTable(container, columns, rows) {
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  columns.forEach(([label]) => {
+    const th = document.createElement("th");
+    th.textContent = label;
+    headRow.append(th);
+  });
+  thead.append(headRow);
+
+  const tbody = document.createElement("tbody");
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.className = "empty";
+    td.colSpan = columns.length;
+    td.textContent = "No rows";
+    tr.append(td);
+    tbody.append(tr);
+  } else {
+    rows.forEach(row => {
+      const tr = document.createElement("tr");
+      columns.forEach(([, value]) => {
+        const td = document.createElement("td");
+        td.textContent = String(value(row));
+        tr.append(td);
+      });
+      tbody.append(tr);
+    });
+  }
+
+  table.append(thead, tbody);
+  container.replaceChildren(table);
+}
+
+function renderRecommendations(items) {
+  recommendations.replaceChildren(...items.map(item => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    return li;
+  }));
+}
+
 function textValue(form, key) {
   const value = String(form.get(key) || "").trim();
   if (!value) {
@@ -516,6 +850,58 @@ function displayValue(value, key) {
   return String(value);
 }
 
+function formatMoney(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) {
+    return "$0.00";
+  }
+  return `$${number.toFixed(2)}`;
+}
+
+function compactMoney(value) {
+  const number = Number(value || 0);
+  if (number >= 1000) {
+    return `$${(number / 1000).toFixed(1)}k`;
+  }
+  return `$${number.toFixed(0)}`;
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) {
+    return "0.0%";
+  }
+  return `${(number * 100).toFixed(1)}%`;
+}
+
+function xForIndex(index, count, left, width) {
+  if (count <= 1) {
+    return left + width / 2;
+  }
+  return left + (index / (count - 1)) * width;
+}
+
+function svgEl(name, attrs = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+  Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+  return element;
+}
+
+function legendItem(label, title, color) {
+  const item = document.createElement("span");
+  item.className = "legend-item";
+  item.title = title;
+
+  const swatch = document.createElement("span");
+  swatch.className = "legend-swatch";
+  swatch.style.background = color;
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  item.append(swatch, text);
+  return item;
+}
+
 function labelize(key) {
   return key
     .replace(/Id$/, " ID")
@@ -526,4 +912,9 @@ function labelize(key) {
 function setStatus(message, type) {
   statusBox.textContent = message;
   statusBox.className = type ? `status ${type}` : "status";
+}
+
+function setReportStatus(message, type) {
+  reportStatus.textContent = message;
+  reportStatus.className = type ? `status ${type}` : "status";
 }

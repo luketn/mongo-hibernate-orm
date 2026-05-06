@@ -78,20 +78,20 @@ class CrystalShopHttpIntegrationTest {
         assertTrue(requestText("GET", "/app.js", null, 200).body().contains("const resources"));
         request("POST", "/sample-data", "", 404);
 
-        assertEquals(4, seedCounts.get("crystals"));
-        assertEquals(5, seedCounts.get("inventoryItems"));
-        assertEquals(3, seedCounts.get("sales"));
+        assertEquals(8, seedCounts.get("crystals"));
+        assertEquals(18, seedCounts.get("inventoryItems"));
+        assertEquals(39, seedCounts.get("sales"));
 
         JsonNode crystals = request("GET", "/crystals", null, 200).body();
         JsonNode customers = request("GET", "/customers", null, 200).body();
         JsonNode stores = request("GET", "/stores", null, 200).body();
         JsonNode inventory = request("GET", "/inventory", null, 200).body();
         JsonNode sales = request("GET", "/sales", null, 200).body();
-        assertEquals(4, crystals.size());
-        assertEquals(3, customers.size());
-        assertEquals(2, stores.size());
-        assertEquals(5, inventory.size());
-        assertEquals(3, sales.size());
+        assertEquals(8, crystals.size());
+        assertEquals(10, customers.size());
+        assertEquals(3, stores.size());
+        assertEquals(18, inventory.size());
+        assertEquals(39, sales.size());
         assertTrue(sales.toString().contains("SEL-003 x2"));
 
         long seededSaleCrystalId = findBy(crystals, "sku", "AME-001").get("id").asLong();
@@ -105,6 +105,7 @@ class CrystalShopHttpIntegrationTest {
         storeCrud();
         inventoryCrud(seededStoreId, inventoryCrystalId);
         saleCrud(seededStoreId, seededCustomerId, seededSaleCrystalId);
+        annualSalesReport();
     }
 
     private void crystalCrud() throws Exception {
@@ -115,7 +116,8 @@ class CrystalShopHttpIntegrationTest {
                   "family": "Quartz",
                   "color": "Pink",
                   "origin": "South Africa",
-                  "retailPrice": 12.25
+                  "retailPrice": 12.25,
+                  "wholesaleCost": 5.10
                 }
                 """, 201);
         long id = created.body().get("id").asLong();
@@ -249,6 +251,22 @@ class CrystalShopHttpIntegrationTest {
 
         request("DELETE", "/sales/" + id, null, 204);
         request("GET", "/sales/" + id, null, 404);
+    }
+
+    private void annualSalesReport() throws Exception {
+        JsonNode report = request("GET", "/reports/annual-sales?year=2025", null, 200).body();
+        assertEquals(2025, report.get("year").asInt());
+        assertEquals(2026, report.get("forecastYear").asInt());
+        assertTrue(report.get("totals").get("revenue").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("totals").get("profit").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("totals").get("costs").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("weeklySalesTrends").size() > 20);
+        assertEquals(12, report.get("monthlyCustomerRetention").size());
+        assertTrue(report.get("bestSellingProducts").size() > 0);
+        assertTrue(report.get("forecasts").toString().contains("projectedRevenue"));
+        assertTrue(report.get("recommendations").size() >= 3);
+
+        request("GET", "/reports/annual-sales?year=not-a-year", null, 400);
     }
 
     private JsonNode findBy(JsonNode array, String field, String value) {

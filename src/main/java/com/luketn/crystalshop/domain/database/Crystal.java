@@ -34,16 +34,28 @@ public class Crystal {
     @Column(name = "retail_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal retailPrice;
 
+    @Column(name = "wholesale_cost", precision = 10, scale = 2)
+    private BigDecimal wholesaleCost;
+
     protected Crystal() {
     }
 
-    public Crystal(String sku, String name, String family, String color, String origin, BigDecimal retailPrice) {
+    public Crystal(
+            String sku,
+            String name,
+            String family,
+            String color,
+            String origin,
+            BigDecimal retailPrice,
+            BigDecimal wholesaleCost
+    ) {
         this.sku = sku;
         this.name = name;
         this.family = family;
         this.color = color;
         this.origin = origin;
         this.retailPrice = retailPrice;
+        this.wholesaleCost = wholesaleCost;
     }
 
     public Long getId() {
@@ -96,5 +108,13 @@ public class Crystal {
 
     public void setRetailPrice(BigDecimal retailPrice) {
         this.retailPrice = retailPrice;
+    }
+
+    public BigDecimal getWholesaleCost() {
+        return wholesaleCost;
+    }
+
+    public void setWholesaleCost(BigDecimal wholesaleCost) {
+        this.wholesaleCost = wholesaleCost;
     }
 }
