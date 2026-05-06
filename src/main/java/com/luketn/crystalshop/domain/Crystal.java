@@ -1,0 +1,100 @@
+package com.luketn.crystalshop.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "crystals")
+public class Crystal {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 32)
+    private String sku;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
+    private String family;
+
+    @Column(nullable = false)
+    private String color;
+
+    @Column(nullable = false)
+    private String origin;
+
+    @Column(name = "retail_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal retailPrice;
+
+    protected Crystal() {
+    }
+
+    public Crystal(String sku, String name, String family, String color, String origin, BigDecimal retailPrice) {
+        this.sku = sku;
+        this.name = name;
+        this.family = family;
+        this.color = color;
+        this.origin = origin;
+        this.retailPrice = retailPrice;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getSku() {
+        return sku;
+    }
+
+    public void setSku(String sku) {
+        this.sku = sku;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getFamily() {
+        return family;
+    }
+
+    public void setFamily(String family) {
+        this.family = family;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
+    }
+
+    public String getOrigin() {
+        return origin;
+    }
+
+    public void setOrigin(String origin) {
+        this.origin = origin;
+    }
+
+    public BigDecimal getRetailPrice() {
+        return retailPrice;
+    }
+
+    public void setRetailPrice(BigDecimal retailPrice) {
+        this.retailPrice = retailPrice;
+    }
+}

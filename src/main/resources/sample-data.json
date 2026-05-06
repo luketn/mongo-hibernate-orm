@@ -1,0 +1,143 @@
+{
+  "crystals": [
+    {
+      "sku": "AME-001",
+      "name": "Amethyst Cluster",
+      "family": "Quartz",
+      "color": "Violet",
+      "origin": "Uruguay",
+      "retailPrice": 48.00
+    },
+    {
+      "sku": "CIT-002",
+      "name": "Citrine Point",
+      "family": "Quartz",
+      "color": "Golden",
+      "origin": "Brazil",
+      "retailPrice": 36.50
+    },
+    {
+      "sku": "SEL-003",
+      "name": "Selenite Wand",
+      "family": "Gypsum",
+      "color": "White",
+      "origin": "Morocco",
+      "retailPrice": 18.00
+    },
+    {
+      "sku": "LAB-004",
+      "name": "Labradorite Palm Stone",
+      "family": "Feldspar",
+      "color": "Blue flash",
+      "origin": "Madagascar",
+      "retailPrice": 29.95
+    }
+  ],
+  "customers": [
+    {
+      "name": "Mira Chen",
+      "email": "mira.chen@example.com",
+      "loyaltyTier": "GOLD"
+    },
+    {
+      "name": "Theo Baker",
+      "email": "theo.baker@example.com",
+      "loyaltyTier": "SILVER"
+    },
+    {
+      "name": "Asha Patel",
+      "email": "asha.patel@example.com",
+      "loyaltyTier": "PLATINUM"
+    }
+  ],
+  "stores": [
+    {
+      "code": "SYD-DAWN",
+      "name": "Dawnlight Crystals",
+      "city": "Sydney",
+      "address": "14 Market Lane, Sydney NSW",
+      "inventory": [
+        {
+          "crystalSku": "AME-001",
+          "quantity": 9,
+          "shelfLocation": "A1"
+        },
+        {
+          "crystalSku": "CIT-002",
+          "quantity": 12,
+          "shelfLocation": "B1"
+        },
+        {
+          "crystalSku": "SEL-003",
+          "quantity": 20,
+          "shelfLocation": "C1"
+        }
+      ],
+      "sales": [
+        {
+          "customerEmail": "mira.chen@example.com",
+          "soldAt": "2026-04-20T10:15:00",
+          "lines": [
+            {
+              "crystalSku": "AME-001",
+              "quantity": 1,
+              "unitPrice": 48.00
+            },
+            {
+              "crystalSku": "SEL-003",
+              "quantity": 2,
+              "unitPrice": 18.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "MEL-MOON",
+      "name": "Moonstone Market",
+      "city": "Melbourne",
+      "address": "22 Arcade Walk, Melbourne VIC",
+      "inventory": [
+        {
+          "crystalSku": "LAB-004",
+          "quantity": 7,
+          "shelfLocation": "A2"
+        },
+        {
+          "crystalSku": "CIT-002",
+          "quantity": 6,
+          "shelfLocation": "B2"
+        }
+      ],
+      "sales": [
+        {
+          "customerEmail": "theo.baker@example.com",
+          "soldAt": "2026-04-21T15:45:00",
+          "lines": [
+            {
+              "crystalSku": "CIT-002",
+              "quantity": 1,
+              "unitPrice": 36.50
+            }
+          ]
+        },
+        {
+          "customerEmail": "asha.patel@example.com",
+          "soldAt": "2026-04-22T12:30:00",
+          "lines": [
+            {
+              "crystalSku": "LAB-004",
+              "quantity": 1,
+              "unitPrice": 29.95
+            },
+            {
+              "crystalSku": "CIT-002",
+              "quantity": 2,
+              "unitPrice": 36.50
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
