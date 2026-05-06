@@ -77,6 +77,7 @@ class CrystalShopHttpIntegrationTest {
         assertEquals(2, stores.size());
         assertEquals(5, inventory.size());
         assertEquals(3, sales.size());
+        assertTrue(sales.toString().contains("SEL-003 x2"));
 
         long seededSaleCrystalId = findBy(crystals, "sku", "AME-001").get("id").asLong();
         long inventoryCrystalId = findBy(crystals, "sku", "LAB-004").get("id").asLong();
@@ -120,7 +121,9 @@ class CrystalShopHttpIntegrationTest {
 
     private void cannotDeleteCrystalWithPriorSales(long crystalId) throws Exception {
         HttpResult delete = request("DELETE", "/crystals/" + crystalId, null, 409);
+        assertTrue(delete.body().get("error").asText().contains("AME-001"));
         assertTrue(delete.body().get("error").asText().contains("sale line"));
+        assertTrue(delete.body().get("error").asText().contains("inventory item"));
 
         JsonNode crystal = request("GET", "/crystals/" + crystalId, null, 200).body();
         assertEquals("AME-001", crystal.get("sku").asText());

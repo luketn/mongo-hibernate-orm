@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -148,10 +149,24 @@ public class CrystalShopService {
                     )
                     .setParameter("crystalId", id)
                     .getSingleResult();
-            if (saleLineCount > 0) {
+            long inventoryCount = session.createQuery(
+                            "select count(item) from InventoryItem item where item.crystal.id = :crystalId",
+                            Long.class
+                    )
+                    .setParameter("crystalId", id)
+                    .getSingleResult();
+            if (saleLineCount > 0 || inventoryCount > 0) {
+                List<String> blockers = new ArrayList<>();
+                if (saleLineCount > 0) {
+                    blockers.add(saleLineCount + " sale line(s)");
+                }
+                if (inventoryCount > 0) {
+                    blockers.add(inventoryCount + " inventory item(s)");
+                }
                 throw new ApiException(
                         409,
-                        "Crystal " + id + " cannot be deleted because it appears in " + saleLineCount + " sale line(s)"
+                        "Crystal " + crystal.getSku() + " cannot be deleted because it appears in "
+                                + String.join(" and ", blockers)
                 );
             }
             session.remove(crystal);
@@ -470,6 +485,9 @@ public class CrystalShopService {
         dto.put("customerName", sale.getCustomer().getName());
         dto.put("soldAt", sale.getSoldAt().toString());
         dto.put("lines", sale.getLines().stream().map(this::saleLineDto).toList());
+        dto.put("lineSummary", sale.getLines().stream()
+                .map(line -> line.getCrystal().getSku() + " x" + line.getQuantity())
+                .toList());
         dto.put("total", sale.getLines().stream()
                 .map(line -> line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add));

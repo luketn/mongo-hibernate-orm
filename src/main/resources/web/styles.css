@@ -279,6 +279,46 @@ tbody tr.selected {
   outline: 3px solid rgba(23, 107, 93, 0.14);
 }
 
+.sale-lines {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.sale-lines-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sale-lines-header h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.sale-lines-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sale-line-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(72px, 0.7fr) minmax(96px, 0.8fr) auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 10px;
+}
+
+.sale-line-remove {
+  min-width: 86px;
+}
+
 .form-actions {
   justify-content: flex-end;
   padding: 0 16px 16px;
@@ -334,9 +374,15 @@ tbody tr.selected {
 
 @media (max-width: 560px) {
   .panel-header,
-  .form-actions {
+  .form-actions,
+  .sale-lines-header,
+  .sale-line-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .sale-line-row {
+    display: flex;
   }
 
   .button {

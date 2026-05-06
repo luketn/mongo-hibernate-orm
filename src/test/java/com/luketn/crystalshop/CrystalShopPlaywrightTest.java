@@ -94,6 +94,7 @@ class CrystalShopPlaywrightTest {
             assertTableContains(page, "SYD-DAWN");
             clickTab(page, "Sales");
             assertTableContains(page, "mira.chen@example.com");
+            assertTableContains(page, "SEL-003 x3");
         }
     }
 
@@ -204,21 +205,40 @@ class CrystalShopPlaywrightTest {
     private void exerciseSaleFlow(Page page) {
         clickTab(page, "Sales");
         assertRecordCount(page, "Sales", "3 records");
+
+        rowWithText(page, "SEL-003 x2").click();
+        assertThat(page.locator(".sale-line-row")).hasCount(2);
+        assertThat(page.locator(".sale-line-row").nth(0)).containsText("Crystal");
+        selectInLine(page, 0, "Crystal", "AME-001 - Amethyst Cluster");
+        selectInLine(page, 1, "Crystal", "SEL-003 - Selenite Wand");
+        fillInLine(page, 1, "Quantity", "3");
+        clickButton(page, "Save");
+        assertStatus(page, "Sale saved.");
+        assertTableContains(page, "AME-001 x1, SEL-003 x3");
+        assertThat(page.getByText("102.00")).isVisible();
+
         clickButton(page, "New");
         select(page, "Store", "SYD-DAWN - Dawnlight Crystals");
         select(page, "Customer", "Mira Chen - mira.chen@example.com");
         fill(page, "Sold At", "2026-04-24T11:15");
-        select(page, "Line Crystal", "AME-001 - Amethyst Cluster");
-        fill(page, "Line Quantity", "1");
-        fill(page, "Line Unit Price", "48.00");
+        selectInLine(page, 0, "Crystal", "AME-001 - Amethyst Cluster");
+        fillInLine(page, 0, "Quantity", "1");
+        fillInLine(page, 0, "Unit Price", "48.00");
+        clickButton(page, "Add Line");
+        selectInLine(page, 1, "Crystal", "SEL-003 - Selenite Wand");
+        fillInLine(page, 1, "Quantity", "2");
+        fillInLine(page, 1, "Unit Price", "18.00");
         clickButton(page, "Save");
         assertStatus(page, "Sale saved.");
         assertRecordCount(page, "Sales", "4 records");
         assertThat(page.getByText("2026-04-24T11:15")).isVisible();
+        assertTableContains(page, "AME-001 x1, SEL-003 x2");
 
         fill(page, "Sold At", "2026-04-24T12:45");
-        fill(page, "Line Quantity", "2");
-        fill(page, "Line Unit Price", "47.50");
+        page.locator(".sale-line-row").nth(1).locator(".sale-line-remove").click();
+        assertThat(page.locator(".sale-line-row")).hasCount(1);
+        fillInLine(page, 0, "Quantity", "2");
+        fillInLine(page, 0, "Unit Price", "47.50");
         clickButton(page, "Save");
         assertStatus(page, "Sale saved.");
         assertThat(page.getByText("2026-04-24T12:45")).isVisible();
@@ -257,6 +277,14 @@ class CrystalShopPlaywrightTest {
         page.getByLabel(label).selectOption(new SelectOption().setLabel(optionLabel));
     }
 
+    private void fillInLine(Page page, int index, String label, String value) {
+        saleLine(page, index).getByLabel(label).fill(value);
+    }
+
+    private void selectInLine(Page page, int index, String label, String optionLabel) {
+        saleLine(page, index).getByLabel(label).selectOption(new SelectOption().setLabel(optionLabel));
+    }
+
     private void assertRecordCount(Page page, String tabName, String count) {
         assertThat(page.getByRole(AriaRole.HEADING, options(tabName))).isVisible();
         assertThat(page.locator("#recordCount")).hasText(count);
@@ -272,6 +300,10 @@ class CrystalShopPlaywrightTest {
 
     private Locator rowWithText(Page page, String text) {
         return page.locator("tbody tr", new Page.LocatorOptions().setHasText(text)).first();
+    }
+
+    private Locator saleLine(Page page, int index) {
+        return page.locator(".sale-line-row").nth(index);
     }
 
     private static Page.GetByRoleOptions options(String name) {

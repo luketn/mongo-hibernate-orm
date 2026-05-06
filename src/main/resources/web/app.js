@@ -52,14 +52,11 @@ const resources = {
     label: "Sales",
     singular: "Sale",
     endpoint: "/sales",
-    columns: ["id", "soldAt", "storeCode", "customerEmail", "total"],
+    columns: ["id", "soldAt", "storeCode", "customerEmail", "lineSummary", "total"],
     fields: [
       { key: "storeId", label: "Store", type: "select", source: "stores", required: true },
       { key: "customerId", label: "Customer", type: "select", source: "customers", required: true },
-      { key: "soldAt", label: "Sold At", type: "datetime-local", required: true },
-      { key: "lineCrystalId", label: "Line Crystal", type: "select", source: "crystals", required: true },
-      { key: "lineQuantity", label: "Line Quantity", type: "integer", min: "1", required: true },
-      { key: "lineUnitPrice", label: "Line Unit Price", type: "number", step: "0.01", required: true }
+      { key: "soldAt", label: "Sold At", type: "datetime-local", required: true }
     ]
   }
 };
@@ -199,7 +196,11 @@ function renderTable(config, rows) {
 }
 
 function renderForm(config, row) {
-  fields.replaceChildren(...config.fields.map(field => createField(field, row)));
+  const controls = config.fields.map(field => createField(field, row));
+  if (state.current === "sales") {
+    controls.push(createSaleLinesEditor(row));
+  }
+  fields.replaceChildren(...controls);
   formTitle.textContent = row ? `Edit ${config.singular}` : `New ${config.singular}`;
   recordMeta.textContent = row ? `ID ${row.id}` : "Ready";
   deleteButton.disabled = !row;
@@ -276,15 +277,6 @@ function fieldValue(key, row) {
   if (key === "soldAt") {
     return String(row.soldAt || "").slice(0, 16);
   }
-  if (key === "lineCrystalId") {
-    return row.lines && row.lines[0] ? row.lines[0].crystalId : "";
-  }
-  if (key === "lineQuantity") {
-    return row.lines && row.lines[0] ? row.lines[0].quantity : "1";
-  }
-  if (key === "lineUnitPrice") {
-    return row.lines && row.lines[0] ? row.lines[0].unitPrice : "";
-  }
   return row[key] ?? "";
 }
 
@@ -342,13 +334,7 @@ function formPayload(config) {
       storeId: numberValue(form, "storeId"),
       customerId: numberValue(form, "customerId"),
       soldAt: textValue(form, "soldAt"),
-      lines: [
-        {
-          crystalId: numberValue(form, "lineCrystalId"),
-          quantity: numberValue(form, "lineQuantity"),
-          unitPrice: decimalValue(form, "lineUnitPrice")
-        }
-      ]
+      lines: saleLinePayload(form)
     };
   }
 
@@ -365,6 +351,100 @@ function formPayload(config) {
   return payload;
 }
 
+function createSaleLinesEditor(row) {
+  const wrap = document.createElement("div");
+  wrap.className = "sale-lines";
+
+  const header = document.createElement("div");
+  header.className = "sale-lines-header";
+  const title = document.createElement("h3");
+  title.textContent = "Sale Lines";
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "button secondary";
+  add.textContent = "Add Line";
+  add.addEventListener("click", () => {
+    wrap.querySelector(".sale-lines-list").append(createSaleLineRow());
+  });
+  header.append(title, add);
+
+  const list = document.createElement("div");
+  list.className = "sale-lines-list";
+  const lines = row && Array.isArray(row.lines) && row.lines.length > 0 ? row.lines : [{}];
+  lines.forEach(line => list.append(createSaleLineRow(line)));
+
+  wrap.append(header, list);
+  return wrap;
+}
+
+function createSaleLineRow(line = {}) {
+  const row = document.createElement("div");
+  row.className = "sale-line-row";
+
+  const crystal = createSaleLineControl("Crystal", "select", "lineCrystalId", line.crystalId || "");
+  const quantity = createSaleLineControl("Quantity", "integer", "lineQuantity", line.quantity || "1");
+  const unitPrice = createSaleLineControl("Unit Price", "number", "lineUnitPrice", line.unitPrice || "");
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "button danger sale-line-remove";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => {
+    const list = row.parentElement;
+    if (list && list.querySelectorAll(".sale-line-row").length > 1) {
+      row.remove();
+    } else {
+      setStatus("A sale needs at least one line.", "error");
+    }
+  });
+
+  row.append(crystal, quantity, unitPrice, remove);
+  return row;
+}
+
+function createSaleLineControl(labelText, type, name, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "field";
+
+  const label = document.createElement("label");
+  label.textContent = labelText;
+
+  const input = type === "select" ? document.createElement("select") : document.createElement("input");
+  input.name = name;
+  input.required = true;
+  input.setAttribute("aria-label", labelText);
+
+  if (type === "select") {
+    addOptions(input, "crystals");
+  } else {
+    input.type = "number";
+    if (type === "integer") {
+      input.min = "1";
+      input.step = "1";
+    } else {
+      input.step = "0.01";
+    }
+  }
+
+  input.value = value;
+  wrap.append(label, input);
+  return wrap;
+}
+
+function saleLinePayload(form) {
+  const crystalIds = form.getAll("lineCrystalId");
+  const quantities = form.getAll("lineQuantity");
+  const unitPrices = form.getAll("lineUnitPrice");
+  if (crystalIds.length === 0) {
+    throw new Error("At least one sale line is required.");
+  }
+  return crystalIds.map((_, index) => ({
+    crystalId: requiredNumber(crystalIds[index], `Line ${index + 1} Crystal`),
+    quantity: requiredNumber(quantities[index], `Line ${index + 1} Quantity`),
+    unitPrice: requiredDecimal(unitPrices[index], `Line ${index + 1} Unit Price`)
+  }));
+}
+
 function textValue(form, key) {
   const value = String(form.get(key) || "").trim();
   if (!value) {
@@ -374,19 +454,25 @@ function textValue(form, key) {
 }
 
 function numberValue(form, key) {
-  const value = textValue(form, key);
+  return requiredNumber(textValue(form, key), labelize(key));
+}
+
+function decimalValue(form, key) {
+  return requiredDecimal(textValue(form, key), labelize(key));
+}
+
+function requiredNumber(value, label) {
   const parsed = Number.parseInt(value, 10);
   if (Number.isNaN(parsed)) {
-    throw new Error(`${labelize(key)} must be a number.`);
+    throw new Error(`${label} must be a number.`);
   }
   return parsed;
 }
 
-function decimalValue(form, key) {
-  const value = textValue(form, key);
+function requiredDecimal(value, label) {
   const parsed = Number.parseFloat(value);
   if (Number.isNaN(parsed)) {
-    throw new Error(`${labelize(key)} must be a decimal number.`);
+    throw new Error(`${label} must be a decimal number.`);
   }
   return parsed;
 }
@@ -420,6 +506,9 @@ function displayValue(value, key) {
     if (Number.isFinite(number)) {
       return number.toFixed(2);
     }
+  }
+  if (key === "lineSummary" && Array.isArray(value)) {
+    return value.join(", ");
   }
   if (Array.isArray(value)) {
     return `${value.length} lines`;
