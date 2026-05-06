@@ -1,7 +1,6 @@
 package com.luketn.crystalshop;
 
 import com.luketn.crystalshop.persistence.HibernateSupport;
-import com.luketn.crystalshop.service.CrystalShopService;
 import org.hibernate.SessionFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -31,8 +30,7 @@ public final class TestPostgresLauncher {
                 "create",
                 0
         ))) {
-            CrystalShopService service = new CrystalShopService(sessionFactory);
-            Map<String, Object> counts = service.loadSampleData();
+            Map<String, Object> counts = new SampleDataImporter(sessionFactory).importSampleData();
             System.out.println("Imported sample data: " + counts);
         }
 

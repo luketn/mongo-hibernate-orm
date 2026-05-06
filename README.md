@@ -24,7 +24,6 @@ The service exposes:
 
 - `GET /` browser GUI
 - `GET /api` endpoint list
-- `POST /sample-data` when `sample-data.json` is present on the classpath
 - `GET|POST /crystals`, `GET|PUT|DELETE /crystals/{id}`
 - `GET|POST /customers`, `GET|PUT|DELETE /customers/{id}`
 - `GET|POST /stores`, `GET|PUT|DELETE /stores/{id}`

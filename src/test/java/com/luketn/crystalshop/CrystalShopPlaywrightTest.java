@@ -7,6 +7,8 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.SelectOption;
+import com.luketn.crystalshop.persistence.HibernateSupport;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -15,15 +17,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.io.IOException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Testcontainers
 class CrystalShopPlaywrightTest {
@@ -39,14 +35,24 @@ class CrystalShopPlaywrightTest {
 
     @BeforeAll
     static void startApplication() throws Exception {
+        AppConfig schemaConfig = new AppConfig(
+                postgres.getJdbcUrl(),
+                postgres.getUsername(),
+                postgres.getPassword(),
+                "create",
+                0
+        );
+        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(schemaConfig)) {
+            new SampleDataImporter(sessionFactory).importSampleData();
+        }
+
         app = CrystalShopApplication.start(new AppConfig(
                 postgres.getJdbcUrl(),
                 postgres.getUsername(),
                 postgres.getPassword(),
-                "create-drop",
+                "validate",
                 0
         ));
-        seedSampleData();
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch();
@@ -249,15 +255,6 @@ class CrystalShopPlaywrightTest {
         assertStatus(page, "Sale deleted.");
         assertRecordCount(page, "Sales", "3 records");
         assertThat(page.getByText("2026-04-24T12:45")).not().isVisible();
-    }
-
-    private static void seedSampleData() throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(app.baseUri().resolve("/sample-data"))
-                .timeout(Duration.ofSeconds(10))
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, response.statusCode(), response.body());
     }
 
     private void clickTab(Page page, String name) {

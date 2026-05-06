@@ -105,14 +105,6 @@ public final class CrystalShopServer implements AutoCloseable {
                 }
             }
 
-            if (segments.size() == 1 && "sample-data".equals(segments.getFirst())) {
-                if ("POST".equals(method)) {
-                    writeJson(exchange, 200, service.loadSampleData());
-                    return;
-                }
-                throw methodNotAllowed();
-            }
-
             if (segments.size() > 2) {
                 throw new ApiException(404, "No endpoint found for " + exchange.getRequestURI().getPath());
             }
@@ -302,7 +294,6 @@ public final class CrystalShopServer implements AutoCloseable {
 
         private Map<String, Object> endpoints() {
             Map<String, Object> routes = new LinkedHashMap<>();
-            routes.put("sampleData", "POST /sample-data");
             routes.put("crystals", "GET|POST /crystals, GET|PUT|DELETE /crystals/{id}");
             routes.put("customers", "GET|POST /customers, GET|PUT|DELETE /customers/{id}");
             routes.put("stores", "GET|POST /stores, GET|PUT|DELETE /stores/{id}");

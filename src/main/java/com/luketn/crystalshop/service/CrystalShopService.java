@@ -1,7 +1,6 @@
 package com.luketn.crystalshop.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luketn.crystalshop.domain.Crystal;
 import com.luketn.crystalshop.domain.Customer;
 import com.luketn.crystalshop.domain.InventoryItem;
@@ -9,18 +8,14 @@ import com.luketn.crystalshop.domain.Sale;
 import com.luketn.crystalshop.domain.SaleLine;
 import com.luketn.crystalshop.domain.Store;
 import com.luketn.crystalshop.http.ApiException;
-import com.luketn.crystalshop.http.JsonSupport;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,73 +24,9 @@ import java.util.function.Function;
 
 public class CrystalShopService {
     private final SessionFactory sessionFactory;
-    private final ObjectMapper mapper = JsonSupport.createMapper();
 
     public CrystalShopService(SessionFactory sessionFactory) {
         this.sessionFactory = sessionFactory;
-    }
-
-    public Map<String, Object> loadSampleData() {
-        SampleData data = readSampleData();
-        return inTransaction(session -> {
-            clearDatabase(session);
-
-            Map<String, Crystal> crystals = new HashMap<>();
-            for (CrystalSeed seed : data.crystals()) {
-                Crystal crystal = new Crystal(
-                        seed.sku(),
-                        seed.name(),
-                        seed.family(),
-                        seed.color(),
-                        seed.origin(),
-                        seed.retailPrice()
-                );
-                session.persist(crystal);
-                crystals.put(crystal.getSku(), crystal);
-            }
-
-            Map<String, Customer> customers = new HashMap<>();
-            for (CustomerSeed seed : data.customers()) {
-                Customer customer = new Customer(seed.name(), seed.email(), seed.loyaltyTier());
-                session.persist(customer);
-                customers.put(customer.getEmail(), customer);
-            }
-
-            int inventoryCount = 0;
-            int saleCount = 0;
-            int saleLineCount = 0;
-            for (StoreSeed seed : data.stores()) {
-                Store store = new Store(seed.code(), seed.name(), seed.city(), seed.address());
-                session.persist(store);
-
-                for (InventorySeed inventorySeed : seed.inventory()) {
-                    Crystal crystal = requireSeedCrystal(crystals, inventorySeed.crystalSku());
-                    session.persist(new InventoryItem(store, crystal, inventorySeed.quantity(), inventorySeed.shelfLocation()));
-                    inventoryCount++;
-                }
-
-                for (SaleSeed saleSeed : seed.sales()) {
-                    Customer customer = requireSeedCustomer(customers, saleSeed.customerEmail());
-                    Sale sale = new Sale(store, customer, saleSeed.soldAt());
-                    for (SaleLineSeed lineSeed : saleSeed.lines()) {
-                        Crystal crystal = requireSeedCrystal(crystals, lineSeed.crystalSku());
-                        sale.addLine(new SaleLine(crystal, lineSeed.quantity(), lineSeed.unitPrice()));
-                        saleLineCount++;
-                    }
-                    session.persist(sale);
-                    saleCount++;
-                }
-            }
-
-            Map<String, Object> counts = new LinkedHashMap<>();
-            counts.put("crystals", data.crystals().size());
-            counts.put("customers", data.customers().size());
-            counts.put("stores", data.stores().size());
-            counts.put("inventoryItems", inventoryCount);
-            counts.put("sales", saleCount);
-            counts.put("saleLines", saleLineCount);
-            return counts;
-        });
     }
 
     public List<Map<String, Object>> listCrystals() {
@@ -367,42 +298,6 @@ public class CrystalShopService {
                     requiredDecimal(line, "unitPrice")
             ));
         }
-    }
-
-    private SampleData readSampleData() {
-        try (InputStream stream = CrystalShopService.class.getClassLoader().getResourceAsStream("sample-data.json")) {
-            if (stream == null) {
-                throw new ApiException(500, "sample-data.json is missing from resources");
-            }
-            return mapper.readValue(stream, SampleData.class);
-        } catch (IOException e) {
-            throw new ApiException(500, "Could not read sample-data.json: " + e.getMessage());
-        }
-    }
-
-    private void clearDatabase(Session session) {
-        session.createMutationQuery("delete from SaleLine").executeUpdate();
-        session.createMutationQuery("delete from Sale").executeUpdate();
-        session.createMutationQuery("delete from InventoryItem").executeUpdate();
-        session.createMutationQuery("delete from Store").executeUpdate();
-        session.createMutationQuery("delete from Customer").executeUpdate();
-        session.createMutationQuery("delete from Crystal").executeUpdate();
-    }
-
-    private Crystal requireSeedCrystal(Map<String, Crystal> crystals, String sku) {
-        Crystal crystal = crystals.get(sku);
-        if (crystal == null) {
-            throw new ApiException(400, "sample data references unknown crystal SKU " + sku);
-        }
-        return crystal;
-    }
-
-    private Customer requireSeedCustomer(Map<String, Customer> customers, String email) {
-        Customer customer = customers.get(email);
-        if (customer == null) {
-            throw new ApiException(400, "sample data references unknown customer email " + email);
-        }
-        return customer;
     }
 
     private <T> T inTransaction(Function<Session, T> work) {

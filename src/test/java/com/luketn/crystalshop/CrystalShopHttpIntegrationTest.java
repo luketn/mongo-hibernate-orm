@@ -3,6 +3,8 @@ package com.luketn.crystalshop;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luketn.crystalshop.http.JsonSupport;
+import com.luketn.crystalshop.persistence.HibernateSupport;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,17 +37,29 @@ class CrystalShopHttpIntegrationTest {
     static final ObjectMapper mapper = JsonSupport.createMapper();
     static HttpClient client;
     static CrystalShopApplication app;
+    static Map<String, Object> seedCounts;
 
     @BeforeAll
     static void startApplication() throws Exception {
         client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
+        AppConfig schemaConfig = new AppConfig(
+                postgres.getJdbcUrl(),
+                postgres.getUsername(),
+                postgres.getPassword(),
+                "create",
+                0
+        );
+        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(schemaConfig)) {
+            seedCounts = new SampleDataImporter(sessionFactory).importSampleData();
+        }
+
         app = CrystalShopApplication.start(new AppConfig(
                 postgres.getJdbcUrl(),
                 postgres.getUsername(),
                 postgres.getPassword(),
-                "create-drop",
+                "validate",
                 0
         ));
     }
@@ -61,11 +76,11 @@ class CrystalShopHttpIntegrationTest {
         assertTrue(requestText("GET", "/", null, 200).body().contains("<title>Crystal Shop</title>"));
         assertTrue(requestText("GET", "/styles.css", null, 200).body().contains(".workspace"));
         assertTrue(requestText("GET", "/app.js", null, 200).body().contains("const resources"));
+        request("POST", "/sample-data", "", 404);
 
-        HttpResult seed = request("POST", "/sample-data", "", 200);
-        assertEquals(4, seed.body().get("crystals").asInt());
-        assertEquals(5, seed.body().get("inventoryItems").asInt());
-        assertEquals(3, seed.body().get("sales").asInt());
+        assertEquals(4, seedCounts.get("crystals"));
+        assertEquals(5, seedCounts.get("inventoryItems"));
+        assertEquals(3, seedCounts.get("sales"));
 
         JsonNode crystals = request("GET", "/crystals", null, 200).body();
         JsonNode customers = request("GET", "/customers", null, 200).body();
