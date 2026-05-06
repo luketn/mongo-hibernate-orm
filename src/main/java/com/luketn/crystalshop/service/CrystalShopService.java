@@ -7,7 +7,6 @@ import com.luketn.crystalshop.domain.api.CustomerView;
 import com.luketn.crystalshop.domain.api.InventoryItemRequest;
 import com.luketn.crystalshop.domain.api.InventoryItemView;
 import com.luketn.crystalshop.domain.api.SaleLineRequest;
-import com.luketn.crystalshop.domain.api.SaleLineView;
 import com.luketn.crystalshop.domain.api.SaleRequest;
 import com.luketn.crystalshop.domain.api.SaleView;
 import com.luketn.crystalshop.domain.api.StoreRequest;
@@ -41,12 +40,12 @@ public class CrystalShopService {
         return inTransaction(session -> session.createQuery("from Crystal c order by c.id", Crystal.class)
                 .getResultList()
                 .stream()
-                .map(this::crystalDto)
+                .map(CrystalView::from)
                 .toList());
     }
 
     public CrystalView getCrystal(long id) {
-        return inTransaction(session -> crystalDto(require(session, Crystal.class, id)));
+        return inTransaction(session -> CrystalView.from(require(session, Crystal.class, id)));
     }
 
     public CrystalView createCrystal(CrystalRequest request) {
@@ -61,7 +60,7 @@ public class CrystalShopService {
             );
             session.persist(crystal);
             session.flush();
-            return crystalDto(crystal);
+            return CrystalView.from(crystal);
         });
     }
 
@@ -87,7 +86,7 @@ public class CrystalShopService {
                 crystal.setRetailPrice(requiredDecimal(request.retailPrice(), "retailPrice"));
             }
             session.flush();
-            return crystalDto(crystal);
+            return CrystalView.from(crystal);
         });
     }
 
@@ -129,12 +128,12 @@ public class CrystalShopService {
         return inTransaction(session -> session.createQuery("from Customer c order by c.id", Customer.class)
                 .getResultList()
                 .stream()
-                .map(this::customerDto)
+                .map(CustomerView::from)
                 .toList());
     }
 
     public CustomerView getCustomer(long id) {
-        return inTransaction(session -> customerDto(require(session, Customer.class, id)));
+        return inTransaction(session -> CustomerView.from(require(session, Customer.class, id)));
     }
 
     public CustomerView createCustomer(CustomerRequest request) {
@@ -146,7 +145,7 @@ public class CrystalShopService {
             );
             session.persist(customer);
             session.flush();
-            return customerDto(customer);
+            return CustomerView.from(customer);
         });
     }
 
@@ -163,7 +162,7 @@ public class CrystalShopService {
                 customer.setLoyaltyTier(requiredText(request.loyaltyTier(), "loyaltyTier"));
             }
             session.flush();
-            return customerDto(customer);
+            return CustomerView.from(customer);
         });
     }
 
@@ -178,12 +177,12 @@ public class CrystalShopService {
         return inTransaction(session -> session.createQuery("from Store s order by s.id", Store.class)
                 .getResultList()
                 .stream()
-                .map(this::storeDto)
+                .map(StoreView::from)
                 .toList());
     }
 
     public StoreView getStore(long id) {
-        return inTransaction(session -> storeDto(require(session, Store.class, id)));
+        return inTransaction(session -> StoreView.from(require(session, Store.class, id)));
     }
 
     public StoreView createStore(StoreRequest request) {
@@ -196,7 +195,7 @@ public class CrystalShopService {
             );
             session.persist(store);
             session.flush();
-            return storeDto(store);
+            return StoreView.from(store);
         });
     }
 
@@ -216,7 +215,7 @@ public class CrystalShopService {
                 store.setAddress(requiredText(request.address(), "address"));
             }
             session.flush();
-            return storeDto(store);
+            return StoreView.from(store);
         });
     }
 
@@ -231,12 +230,12 @@ public class CrystalShopService {
         return inTransaction(session -> session.createQuery("from InventoryItem i order by i.id", InventoryItem.class)
                 .getResultList()
                 .stream()
-                .map(this::inventoryDto)
+                .map(InventoryItemView::from)
                 .toList());
     }
 
     public InventoryItemView getInventory(long id) {
-        return inTransaction(session -> inventoryDto(require(session, InventoryItem.class, id)));
+        return inTransaction(session -> InventoryItemView.from(require(session, InventoryItem.class, id)));
     }
 
     public InventoryItemView createInventory(InventoryItemRequest request) {
@@ -251,7 +250,7 @@ public class CrystalShopService {
             );
             session.persist(item);
             session.flush();
-            return inventoryDto(item);
+            return InventoryItemView.from(item);
         });
     }
 
@@ -271,7 +270,7 @@ public class CrystalShopService {
                 item.setShelfLocation(requiredText(request.shelfLocation(), "shelfLocation"));
             }
             session.flush();
-            return inventoryDto(item);
+            return InventoryItemView.from(item);
         });
     }
 
@@ -286,12 +285,12 @@ public class CrystalShopService {
         return inTransaction(session -> session.createQuery("from Sale s order by s.id", Sale.class)
                 .getResultList()
                 .stream()
-                .map(this::saleDto)
+                .map(SaleView::from)
                 .toList());
     }
 
     public SaleView getSale(long id) {
-        return inTransaction(session -> saleDto(require(session, Sale.class, id)));
+        return inTransaction(session -> SaleView.from(require(session, Sale.class, id)));
     }
 
     public SaleView createSale(SaleRequest request) {
@@ -302,7 +301,7 @@ public class CrystalShopService {
             replaceSaleLines(session, sale, request.lines());
             session.persist(sale);
             session.flush();
-            return saleDto(sale);
+            return SaleView.from(sale);
         });
     }
 
@@ -322,7 +321,7 @@ public class CrystalShopService {
                 replaceSaleLines(session, sale, request.lines());
             }
             session.flush();
-            return saleDto(sale);
+            return SaleView.from(sale);
         });
     }
 
@@ -373,88 +372,6 @@ public class CrystalShopService {
             throw new ApiException(404, type.getSimpleName() + " " + id + " was not found");
         }
         return entity;
-    }
-
-    private CrystalView crystalDto(Crystal crystal) {
-        return new CrystalView(
-                crystal.getId(),
-                crystal.getSku(),
-                crystal.getName(),
-                crystal.getFamily(),
-                crystal.getColor(),
-                crystal.getOrigin(),
-                crystal.getRetailPrice()
-        );
-    }
-
-    private CustomerView customerDto(Customer customer) {
-        return new CustomerView(
-                customer.getId(),
-                customer.getName(),
-                customer.getEmail(),
-                customer.getLoyaltyTier()
-        );
-    }
-
-    private StoreView storeDto(Store store) {
-        return new StoreView(
-                store.getId(),
-                store.getCode(),
-                store.getName(),
-                store.getCity(),
-                store.getAddress()
-        );
-    }
-
-    private InventoryItemView inventoryDto(InventoryItem item) {
-        return new InventoryItemView(
-                item.getId(),
-                item.getStore().getId(),
-                item.getStore().getCode(),
-                item.getStore().getName(),
-                item.getCrystal().getId(),
-                item.getCrystal().getSku(),
-                item.getCrystal().getName(),
-                item.getQuantity(),
-                item.getShelfLocation()
-        );
-    }
-
-    private SaleView saleDto(Sale sale) {
-        List<SaleLineView> lines = sale.getLines().stream().map(this::saleLineDto).toList();
-        List<String> lineSummary = sale.getLines().stream()
-                .map(line -> line.getCrystal().getSku() + " x" + line.getQuantity())
-                .toList();
-        BigDecimal total = sale.getLines().stream()
-                .map(line -> line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        return new SaleView(
-                sale.getId(),
-                sale.getStore().getId(),
-                sale.getStore().getCode(),
-                sale.getStore().getName(),
-                sale.getCustomer().getId(),
-                sale.getCustomer().getEmail(),
-                sale.getCustomer().getName(),
-                sale.getSoldAt().toString(),
-                lines,
-                lineSummary,
-                total
-        );
-    }
-
-    private SaleLineView saleLineDto(SaleLine line) {
-        BigDecimal lineTotal = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
-        return new SaleLineView(
-                line.getId(),
-                line.getCrystal().getId(),
-                line.getCrystal().getSku(),
-                line.getCrystal().getName(),
-                line.getQuantity(),
-                line.getUnitPrice(),
-                lineTotal
-        );
     }
 
     private String requiredText(String value, String field) {

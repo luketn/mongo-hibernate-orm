@@ -1,5 +1,7 @@
 package com.luketn.crystalshop.domain.api;
 
+import com.luketn.crystalshop.domain.database.SaleLine;
+
 import java.math.BigDecimal;
 
 public record SaleLineView(
@@ -11,4 +13,15 @@ public record SaleLineView(
         BigDecimal unitPrice,
         BigDecimal lineTotal
 ) {
+    public static SaleLineView from(SaleLine line) {
+        return new SaleLineView(
+                line.getId(),
+                line.getCrystal().getId(),
+                line.getCrystal().getSku(),
+                line.getCrystal().getName(),
+                line.getQuantity(),
+                line.getUnitPrice(),
+                line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()))
+        );
+    }
 }

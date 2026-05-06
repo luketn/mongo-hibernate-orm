@@ -1,5 +1,7 @@
 package com.luketn.crystalshop.domain.api;
 
+import com.luketn.crystalshop.domain.database.Crystal;
+
 import java.math.BigDecimal;
 
 public record CrystalView(
@@ -11,4 +13,15 @@ public record CrystalView(
         String origin,
         BigDecimal retailPrice
 ) {
+    public static CrystalView from(Crystal crystal) {
+        return new CrystalView(
+                crystal.getId(),
+                crystal.getSku(),
+                crystal.getName(),
+                crystal.getFamily(),
+                crystal.getColor(),
+                crystal.getOrigin(),
+                crystal.getRetailPrice()
+        );
+    }
 }
