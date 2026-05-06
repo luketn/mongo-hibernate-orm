@@ -141,7 +141,20 @@ public class CrystalShopService {
 
     public void deleteCrystal(long id) {
         inTransaction(session -> {
-            session.remove(require(session, Crystal.class, id));
+            Crystal crystal = require(session, Crystal.class, id);
+            long saleLineCount = session.createQuery(
+                            "select count(line) from SaleLine line where line.crystal.id = :crystalId",
+                            Long.class
+                    )
+                    .setParameter("crystalId", id)
+                    .getSingleResult();
+            if (saleLineCount > 0) {
+                throw new ApiException(
+                        409,
+                        "Crystal " + id + " cannot be deleted because it appears in " + saleLineCount + " sale line(s)"
+                );
+            }
+            session.remove(crystal);
             return null;
         });
     }

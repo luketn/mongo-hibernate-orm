@@ -83,6 +83,7 @@ class CrystalShopHttpIntegrationTest {
         long seededCustomerId = findBy(customers, "email", "mira.chen@example.com").get("id").asLong();
         long seededStoreId = findBy(stores, "code", "SYD-DAWN").get("id").asLong();
 
+        cannotDeleteCrystalWithPriorSales(seededSaleCrystalId);
         crystalCrud();
         customerCrud();
         storeCrud();
@@ -115,6 +116,14 @@ class CrystalShopHttpIntegrationTest {
 
         request("DELETE", "/crystals/" + id, null, 204);
         request("GET", "/crystals/" + id, null, 404);
+    }
+
+    private void cannotDeleteCrystalWithPriorSales(long crystalId) throws Exception {
+        HttpResult delete = request("DELETE", "/crystals/" + crystalId, null, 409);
+        assertTrue(delete.body().get("error").asText().contains("sale line"));
+
+        JsonNode crystal = request("GET", "/crystals/" + crystalId, null, 200).body();
+        assertEquals("AME-001", crystal.get("sku").asText());
     }
 
     private void customerCrud() throws Exception {

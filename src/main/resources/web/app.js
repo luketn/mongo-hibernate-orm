@@ -70,6 +70,8 @@ const state = {
   data: {}
 };
 
+const moneyColumns = new Set(["retailPrice", "unitPrice", "lineTotal", "total"]);
+
 const tabs = document.getElementById("tabs");
 const tableHead = document.getElementById("tableHead");
 const tableBody = document.getElementById("tableBody");
@@ -164,8 +166,8 @@ function renderTable(config, rows) {
     tr.addEventListener("click", () => selectRow(row.id));
     config.columns.forEach(column => {
       const td = document.createElement("td");
-      td.title = displayValue(row[column]);
-      td.textContent = displayValue(row[column]);
+      td.title = displayValue(row[column], column);
+      td.textContent = displayValue(row[column], column);
       tr.append(td);
     });
 
@@ -409,9 +411,15 @@ async function api(path, options = {}) {
   return payload;
 }
 
-function displayValue(value) {
+function displayValue(value, key) {
   if (value === null || value === undefined) {
     return "";
+  }
+  if (moneyColumns.has(key)) {
+    const number = Number(value);
+    if (Number.isFinite(number)) {
+      return number.toFixed(2);
+    }
   }
   if (Array.isArray(value)) {
     return `${value.length} lines`;
