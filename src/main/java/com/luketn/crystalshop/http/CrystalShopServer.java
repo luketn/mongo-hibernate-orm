@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -79,10 +80,29 @@ public final class CrystalShopServer implements AutoCloseable {
 
             if (segments.isEmpty()) {
                 if ("GET".equals(method)) {
-                    writeJson(exchange, 200, endpoints());
+                    writeResource(exchange, "web/index.html", "text/html; charset=utf-8");
                     return;
                 }
                 throw methodNotAllowed();
+            }
+
+            if ("GET".equals(method) && segments.size() == 1) {
+                switch (segments.getFirst()) {
+                    case "app.js" -> {
+                        writeResource(exchange, "web/app.js", "application/javascript; charset=utf-8");
+                        return;
+                    }
+                    case "styles.css" -> {
+                        writeResource(exchange, "web/styles.css", "text/css; charset=utf-8");
+                        return;
+                    }
+                    case "api" -> {
+                        writeJson(exchange, 200, endpoints());
+                        return;
+                    }
+                    default -> {
+                    }
+                }
             }
 
             if (segments.size() == 1 && "sample-data".equals(segments.getFirst())) {
@@ -220,6 +240,20 @@ public final class CrystalShopServer implements AutoCloseable {
                     }
                 }
                 default -> throw new ApiException(404, "No resource found for " + resource);
+            }
+        }
+
+        private void writeResource(HttpExchange exchange, String name, String contentType) throws IOException {
+            try (InputStream stream = CrystalShopServer.class.getClassLoader().getResourceAsStream(name)) {
+                if (stream == null) {
+                    throw new ApiException(404, "Static resource was not found");
+                }
+                byte[] bytes = stream.readAllBytes();
+                exchange.getResponseHeaders().set("Content-Type", contentType);
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (OutputStream response = exchange.getResponseBody()) {
+                    response.write(bytes);
+                }
             }
         }
 

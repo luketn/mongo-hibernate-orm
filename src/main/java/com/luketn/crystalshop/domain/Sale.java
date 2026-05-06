@@ -10,7 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderColumn;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
@@ -36,7 +36,7 @@ public class Sale {
     private LocalDateTime soldAt;
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderColumn(name = "line_number")
+    @OrderBy("id")
     private List<SaleLine> lines = new ArrayList<>();
 
     protected Sale() {

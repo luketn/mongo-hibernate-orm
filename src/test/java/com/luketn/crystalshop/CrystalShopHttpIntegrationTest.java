@@ -58,6 +58,10 @@ class CrystalShopHttpIntegrationTest {
 
     @Test
     void allEndpointsRoundTripThroughHttpHibernateAndPostgres() throws Exception {
+        assertTrue(requestText("GET", "/", null, 200).body().contains("<title>Crystal Shop</title>"));
+        assertTrue(requestText("GET", "/styles.css", null, 200).body().contains(".workspace"));
+        assertTrue(requestText("GET", "/app.js", null, 200).body().contains("const resources"));
+
         HttpResult seed = request("POST", "/sample-data", "", 200);
         assertEquals(4, seed.body().get("crystals").asInt());
         assertEquals(5, seed.body().get("inventoryItems").asInt());
@@ -251,10 +255,29 @@ class CrystalShopHttpIntegrationTest {
         return new HttpResult(response.statusCode(), json);
     }
 
+    private TextResult requestText(String method, String path, String body, int expectedStatus)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri(path))
+                .timeout(Duration.ofSeconds(10));
+        if (body == null) {
+            builder.method(method, HttpRequest.BodyPublishers.noBody());
+        } else {
+            builder.header("Content-Type", "text/plain");
+            builder.method(method, HttpRequest.BodyPublishers.ofString(body));
+        }
+
+        HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(expectedStatus, response.statusCode(), response.body());
+        return new TextResult(response.statusCode(), response.body());
+    }
+
     private URI uri(String path) {
         return app.baseUri().resolve(path);
     }
 
     private record HttpResult(int status, JsonNode body) {
+    }
+
+    private record TextResult(int status, String body) {
     }
 }

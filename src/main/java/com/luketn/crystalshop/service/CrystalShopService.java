@@ -342,9 +342,7 @@ public class CrystalShopService {
     }
 
     private SampleData readSampleData() {
-        try (InputStream stream = Thread.currentThread()
-                .getContextClassLoader()
-                .getResourceAsStream("sample-data.json")) {
+        try (InputStream stream = CrystalShopService.class.getClassLoader().getResourceAsStream("sample-data.json")) {
             if (stream == null) {
                 throw new ApiException(500, "sample-data.json is missing from resources");
             }

@@ -22,9 +22,31 @@ mvn -q exec:java -Dexec.mainClass=com.luketn.crystalshop.Main
 
 The service exposes:
 
-- `POST /sample-data`
+- `GET /` browser GUI
+- `GET /api` endpoint list
+- `POST /sample-data` when `sample-data.json` is present on the classpath
 - `GET|POST /crystals`, `GET|PUT|DELETE /crystals/{id}`
 - `GET|POST /customers`, `GET|PUT|DELETE /customers/{id}`
 - `GET|POST /stores`, `GET|PUT|DELETE /stores/{id}`
 - `GET|POST /inventory`, `GET|PUT|DELETE /inventory/{id}`
 - `GET|POST /sales`, `GET|PUT|DELETE /sales/{id}`
+
+## Test PostgreSQL Fixture
+
+This starts a PostgreSQL Testcontainers instance on the default PostgreSQL port, imports `src/test/resources/sample-data.json`, and keeps the container running so the real app can connect with its default settings.
+
+```sh
+JAVA_HOME=$(/usr/libexec/java_home -v 25) \
+mvn -q test-compile exec:java \
+  -Dexec.classpathScope=test \
+  -Dexec.mainClass=com.luketn.crystalshop.TestPostgresLauncher
+```
+
+In another terminal:
+
+```sh
+JAVA_HOME=$(/usr/libexec/java_home -v 25) \
+mvn -q exec:java -Dexec.mainClass=com.luketn.crystalshop.Main
+```
+
+Port `5432` must be free before starting the fixture.

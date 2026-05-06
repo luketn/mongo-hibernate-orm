@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crystal Shop</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">CS</div>
+        <div>
+          <h1>Crystal Shop</h1>
+          <p>Hibernate ORM / PostgreSQL</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="refreshButton" type="button" class="button primary">Refresh</button>
+      </div>
+    </header>
+
+    <nav id="tabs" class="tabs" aria-label="Resources"></nav>
+
+    <main class="workspace">
+      <section class="data-panel" aria-labelledby="resourceTitle">
+        <div class="panel-header">
+          <div>
+            <h2 id="resourceTitle">Crystals</h2>
+            <p id="recordCount">0 records</p>
+          </div>
+          <button id="newButton" type="button" class="button secondary">New</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="editor-panel" aria-labelledby="formTitle">
+        <form id="editorForm">
+          <div class="panel-header compact">
+            <div>
+              <h2 id="formTitle">New Crystal</h2>
+              <p id="recordMeta">Ready</p>
+            </div>
+            <button id="clearButton" type="button" class="button secondary">Clear</button>
+          </div>
+          <div id="fields" class="fields"></div>
+          <div class="form-actions">
+            <button id="saveButton" type="submit" class="button primary">Save</button>
+            <button id="deleteButton" type="button" class="button danger">Delete</button>
+          </div>
+        </form>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
