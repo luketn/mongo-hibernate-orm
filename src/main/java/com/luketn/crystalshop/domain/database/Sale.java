@@ -1,4 +1,4 @@
-package com.luketn.crystalshop.domain;
+package com.luketn.crystalshop.domain.database;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

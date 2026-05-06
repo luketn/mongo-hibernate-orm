@@ -1,8 +1,12 @@
 package com.luketn.crystalshop.http;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.luketn.crystalshop.domain.api.CrystalRequest;
+import com.luketn.crystalshop.domain.api.CustomerRequest;
+import com.luketn.crystalshop.domain.api.InventoryItemRequest;
+import com.luketn.crystalshop.domain.api.SaleRequest;
+import com.luketn.crystalshop.domain.api.StoreRequest;
 import com.luketn.crystalshop.service.CrystalShopService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -66,7 +70,7 @@ public final class CrystalShopServer implements AutoCloseable {
             } catch (ApiException e) {
                 writeJson(exchange, e.statusCode(), error(e.statusCode(), e.getMessage()));
             } catch (JsonProcessingException e) {
-                writeJson(exchange, 400, error(400, "Request body must be valid JSON"));
+                writeJson(exchange, 400, error(400, "Request body must be valid JSON for this endpoint"));
             } catch (Exception e) {
                 writeJson(exchange, 500, error(500, e.getMessage()));
             } finally {
@@ -110,21 +114,20 @@ public final class CrystalShopServer implements AutoCloseable {
             }
 
             String resource = segments.getFirst();
-            JsonNode body = needsBody(method) ? readBody(exchange) : mapper.createObjectNode();
             if (segments.size() == 1) {
-                handleCollection(exchange, method, resource, body);
+                handleCollection(exchange, method, resource);
             } else {
-                handleItem(exchange, method, resource, parseId(segments.get(1)), body);
+                handleItem(exchange, method, resource, parseId(segments.get(1)));
             }
         }
 
-        private void handleCollection(HttpExchange exchange, String method, String resource, JsonNode body) throws IOException {
+        private void handleCollection(HttpExchange exchange, String method, String resource) throws IOException {
             switch (resource) {
                 case "crystals" -> {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.listCrystals());
                     } else if ("POST".equals(method)) {
-                        writeJson(exchange, 201, service.createCrystal(body));
+                        writeJson(exchange, 201, service.createCrystal(readBody(exchange, CrystalRequest.class)));
                     } else {
                         throw methodNotAllowed();
                     }
@@ -133,7 +136,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.listCustomers());
                     } else if ("POST".equals(method)) {
-                        writeJson(exchange, 201, service.createCustomer(body));
+                        writeJson(exchange, 201, service.createCustomer(readBody(exchange, CustomerRequest.class)));
                     } else {
                         throw methodNotAllowed();
                     }
@@ -142,7 +145,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.listStores());
                     } else if ("POST".equals(method)) {
-                        writeJson(exchange, 201, service.createStore(body));
+                        writeJson(exchange, 201, service.createStore(readBody(exchange, StoreRequest.class)));
                     } else {
                         throw methodNotAllowed();
                     }
@@ -151,7 +154,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.listInventory());
                     } else if ("POST".equals(method)) {
-                        writeJson(exchange, 201, service.createInventory(body));
+                        writeJson(exchange, 201, service.createInventory(readBody(exchange, InventoryItemRequest.class)));
                     } else {
                         throw methodNotAllowed();
                     }
@@ -160,7 +163,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.listSales());
                     } else if ("POST".equals(method)) {
-                        writeJson(exchange, 201, service.createSale(body));
+                        writeJson(exchange, 201, service.createSale(readBody(exchange, SaleRequest.class)));
                     } else {
                         throw methodNotAllowed();
                     }
@@ -169,13 +172,13 @@ public final class CrystalShopServer implements AutoCloseable {
             }
         }
 
-        private void handleItem(HttpExchange exchange, String method, String resource, long id, JsonNode body) throws IOException {
+        private void handleItem(HttpExchange exchange, String method, String resource, long id) throws IOException {
             switch (resource) {
                 case "crystals" -> {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.getCrystal(id));
                     } else if ("PUT".equals(method)) {
-                        writeJson(exchange, 200, service.updateCrystal(id, body));
+                        writeJson(exchange, 200, service.updateCrystal(id, readBody(exchange, CrystalRequest.class)));
                     } else if ("DELETE".equals(method)) {
                         service.deleteCrystal(id);
                         writeNoContent(exchange);
@@ -187,7 +190,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.getCustomer(id));
                     } else if ("PUT".equals(method)) {
-                        writeJson(exchange, 200, service.updateCustomer(id, body));
+                        writeJson(exchange, 200, service.updateCustomer(id, readBody(exchange, CustomerRequest.class)));
                     } else if ("DELETE".equals(method)) {
                         service.deleteCustomer(id);
                         writeNoContent(exchange);
@@ -199,7 +202,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.getStore(id));
                     } else if ("PUT".equals(method)) {
-                        writeJson(exchange, 200, service.updateStore(id, body));
+                        writeJson(exchange, 200, service.updateStore(id, readBody(exchange, StoreRequest.class)));
                     } else if ("DELETE".equals(method)) {
                         service.deleteStore(id);
                         writeNoContent(exchange);
@@ -211,7 +214,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.getInventory(id));
                     } else if ("PUT".equals(method)) {
-                        writeJson(exchange, 200, service.updateInventory(id, body));
+                        writeJson(exchange, 200, service.updateInventory(id, readBody(exchange, InventoryItemRequest.class)));
                     } else if ("DELETE".equals(method)) {
                         service.deleteInventory(id);
                         writeNoContent(exchange);
@@ -223,7 +226,7 @@ public final class CrystalShopServer implements AutoCloseable {
                     if ("GET".equals(method)) {
                         writeJson(exchange, 200, service.getSale(id));
                     } else if ("PUT".equals(method)) {
-                        writeJson(exchange, 200, service.updateSale(id, body));
+                        writeJson(exchange, 200, service.updateSale(id, readBody(exchange, SaleRequest.class)));
                     } else if ("DELETE".equals(method)) {
                         service.deleteSale(id);
                         writeNoContent(exchange);
@@ -249,12 +252,13 @@ public final class CrystalShopServer implements AutoCloseable {
             }
         }
 
-        private JsonNode readBody(HttpExchange exchange) throws IOException {
+        private <T> T readBody(HttpExchange exchange, Class<T> type) throws IOException {
             byte[] bytes = exchange.getRequestBody().readAllBytes();
-            if (bytes.length == 0) {
-                return mapper.createObjectNode();
+            T body = bytes.length == 0 ? mapper.readValue("{}", type) : mapper.readValue(bytes, type);
+            if (body == null) {
+                throw new ApiException(400, "Request body must be a JSON object");
             }
-            return mapper.readTree(bytes);
+            return body;
         }
 
         private void writeJson(HttpExchange exchange, int status, Object payload) throws IOException {
@@ -282,10 +286,6 @@ public final class CrystalShopServer implements AutoCloseable {
             } catch (NumberFormatException e) {
                 throw new ApiException(400, "id must be a long integer");
             }
-        }
-
-        private boolean needsBody(String method) {
-            return "POST".equals(method) || "PUT".equals(method);
         }
 
         private ApiException methodNotAllowed() {

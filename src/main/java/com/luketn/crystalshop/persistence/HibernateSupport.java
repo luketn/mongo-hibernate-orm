@@ -1,12 +1,12 @@
 package com.luketn.crystalshop.persistence;
 
 import com.luketn.crystalshop.AppConfig;
-import com.luketn.crystalshop.domain.Crystal;
-import com.luketn.crystalshop.domain.Customer;
-import com.luketn.crystalshop.domain.InventoryItem;
-import com.luketn.crystalshop.domain.Sale;
-import com.luketn.crystalshop.domain.SaleLine;
-import com.luketn.crystalshop.domain.Store;
+import com.luketn.crystalshop.domain.database.Crystal;
+import com.luketn.crystalshop.domain.database.Customer;
+import com.luketn.crystalshop.domain.database.InventoryItem;
+import com.luketn.crystalshop.domain.database.Sale;
+import com.luketn.crystalshop.domain.database.SaleLine;
+import com.luketn.crystalshop.domain.database.Store;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;

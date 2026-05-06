@@ -1,12 +1,12 @@
 package com.luketn.crystalshop;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.luketn.crystalshop.domain.Crystal;
-import com.luketn.crystalshop.domain.Customer;
-import com.luketn.crystalshop.domain.InventoryItem;
-import com.luketn.crystalshop.domain.Sale;
-import com.luketn.crystalshop.domain.SaleLine;
-import com.luketn.crystalshop.domain.Store;
+import com.luketn.crystalshop.domain.database.Crystal;
+import com.luketn.crystalshop.domain.database.Customer;
+import com.luketn.crystalshop.domain.database.InventoryItem;
+import com.luketn.crystalshop.domain.database.Sale;
+import com.luketn.crystalshop.domain.database.SaleLine;
+import com.luketn.crystalshop.domain.database.Store;
 import com.luketn.crystalshop.http.JsonSupport;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;

@@ -1,12 +1,23 @@
 package com.luketn.crystalshop.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.luketn.crystalshop.domain.Crystal;
-import com.luketn.crystalshop.domain.Customer;
-import com.luketn.crystalshop.domain.InventoryItem;
-import com.luketn.crystalshop.domain.Sale;
-import com.luketn.crystalshop.domain.SaleLine;
-import com.luketn.crystalshop.domain.Store;
+import com.luketn.crystalshop.domain.api.CrystalRequest;
+import com.luketn.crystalshop.domain.api.CrystalView;
+import com.luketn.crystalshop.domain.api.CustomerRequest;
+import com.luketn.crystalshop.domain.api.CustomerView;
+import com.luketn.crystalshop.domain.api.InventoryItemRequest;
+import com.luketn.crystalshop.domain.api.InventoryItemView;
+import com.luketn.crystalshop.domain.api.SaleLineRequest;
+import com.luketn.crystalshop.domain.api.SaleLineView;
+import com.luketn.crystalshop.domain.api.SaleRequest;
+import com.luketn.crystalshop.domain.api.SaleView;
+import com.luketn.crystalshop.domain.api.StoreRequest;
+import com.luketn.crystalshop.domain.api.StoreView;
+import com.luketn.crystalshop.domain.database.Crystal;
+import com.luketn.crystalshop.domain.database.Customer;
+import com.luketn.crystalshop.domain.database.InventoryItem;
+import com.luketn.crystalshop.domain.database.Sale;
+import com.luketn.crystalshop.domain.database.SaleLine;
+import com.luketn.crystalshop.domain.database.Store;
 import com.luketn.crystalshop.http.ApiException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
@@ -16,10 +27,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class CrystalShopService {
@@ -29,7 +37,7 @@ public class CrystalShopService {
         this.sessionFactory = sessionFactory;
     }
 
-    public List<Map<String, Object>> listCrystals() {
+    public List<CrystalView> listCrystals() {
         return inTransaction(session -> session.createQuery("from Crystal c order by c.id", Crystal.class)
                 .getResultList()
                 .stream()
@@ -37,19 +45,19 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public Map<String, Object> getCrystal(long id) {
+    public CrystalView getCrystal(long id) {
         return inTransaction(session -> crystalDto(require(session, Crystal.class, id)));
     }
 
-    public Map<String, Object> createCrystal(JsonNode body) {
+    public CrystalView createCrystal(CrystalRequest request) {
         return inTransaction(session -> {
             Crystal crystal = new Crystal(
-                    requiredText(body, "sku"),
-                    requiredText(body, "name"),
-                    requiredText(body, "family"),
-                    requiredText(body, "color"),
-                    requiredText(body, "origin"),
-                    requiredDecimal(body, "retailPrice")
+                    requiredText(request.sku(), "sku"),
+                    requiredText(request.name(), "name"),
+                    requiredText(request.family(), "family"),
+                    requiredText(request.color(), "color"),
+                    requiredText(request.origin(), "origin"),
+                    requiredDecimal(request.retailPrice(), "retailPrice")
             );
             session.persist(crystal);
             session.flush();
@@ -57,15 +65,27 @@ public class CrystalShopService {
         });
     }
 
-    public Map<String, Object> updateCrystal(long id, JsonNode body) {
+    public CrystalView updateCrystal(long id, CrystalRequest request) {
         return inTransaction(session -> {
             Crystal crystal = require(session, Crystal.class, id);
-            optionalText(body, "sku", crystal::setSku);
-            optionalText(body, "name", crystal::setName);
-            optionalText(body, "family", crystal::setFamily);
-            optionalText(body, "color", crystal::setColor);
-            optionalText(body, "origin", crystal::setOrigin);
-            optionalDecimal(body, "retailPrice", crystal::setRetailPrice);
+            if (request.sku() != null) {
+                crystal.setSku(requiredText(request.sku(), "sku"));
+            }
+            if (request.name() != null) {
+                crystal.setName(requiredText(request.name(), "name"));
+            }
+            if (request.family() != null) {
+                crystal.setFamily(requiredText(request.family(), "family"));
+            }
+            if (request.color() != null) {
+                crystal.setColor(requiredText(request.color(), "color"));
+            }
+            if (request.origin() != null) {
+                crystal.setOrigin(requiredText(request.origin(), "origin"));
+            }
+            if (request.retailPrice() != null) {
+                crystal.setRetailPrice(requiredDecimal(request.retailPrice(), "retailPrice"));
+            }
             session.flush();
             return crystalDto(crystal);
         });
@@ -105,7 +125,7 @@ public class CrystalShopService {
         });
     }
 
-    public List<Map<String, Object>> listCustomers() {
+    public List<CustomerView> listCustomers() {
         return inTransaction(session -> session.createQuery("from Customer c order by c.id", Customer.class)
                 .getResultList()
                 .stream()
@@ -113,16 +133,16 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public Map<String, Object> getCustomer(long id) {
+    public CustomerView getCustomer(long id) {
         return inTransaction(session -> customerDto(require(session, Customer.class, id)));
     }
 
-    public Map<String, Object> createCustomer(JsonNode body) {
+    public CustomerView createCustomer(CustomerRequest request) {
         return inTransaction(session -> {
             Customer customer = new Customer(
-                    requiredText(body, "name"),
-                    requiredText(body, "email"),
-                    requiredText(body, "loyaltyTier")
+                    requiredText(request.name(), "name"),
+                    requiredText(request.email(), "email"),
+                    requiredText(request.loyaltyTier(), "loyaltyTier")
             );
             session.persist(customer);
             session.flush();
@@ -130,12 +150,18 @@ public class CrystalShopService {
         });
     }
 
-    public Map<String, Object> updateCustomer(long id, JsonNode body) {
+    public CustomerView updateCustomer(long id, CustomerRequest request) {
         return inTransaction(session -> {
             Customer customer = require(session, Customer.class, id);
-            optionalText(body, "name", customer::setName);
-            optionalText(body, "email", customer::setEmail);
-            optionalText(body, "loyaltyTier", customer::setLoyaltyTier);
+            if (request.name() != null) {
+                customer.setName(requiredText(request.name(), "name"));
+            }
+            if (request.email() != null) {
+                customer.setEmail(requiredText(request.email(), "email"));
+            }
+            if (request.loyaltyTier() != null) {
+                customer.setLoyaltyTier(requiredText(request.loyaltyTier(), "loyaltyTier"));
+            }
             session.flush();
             return customerDto(customer);
         });
@@ -148,7 +174,7 @@ public class CrystalShopService {
         });
     }
 
-    public List<Map<String, Object>> listStores() {
+    public List<StoreView> listStores() {
         return inTransaction(session -> session.createQuery("from Store s order by s.id", Store.class)
                 .getResultList()
                 .stream()
@@ -156,17 +182,17 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public Map<String, Object> getStore(long id) {
+    public StoreView getStore(long id) {
         return inTransaction(session -> storeDto(require(session, Store.class, id)));
     }
 
-    public Map<String, Object> createStore(JsonNode body) {
+    public StoreView createStore(StoreRequest request) {
         return inTransaction(session -> {
             Store store = new Store(
-                    requiredText(body, "code"),
-                    requiredText(body, "name"),
-                    requiredText(body, "city"),
-                    requiredText(body, "address")
+                    requiredText(request.code(), "code"),
+                    requiredText(request.name(), "name"),
+                    requiredText(request.city(), "city"),
+                    requiredText(request.address(), "address")
             );
             session.persist(store);
             session.flush();
@@ -174,13 +200,21 @@ public class CrystalShopService {
         });
     }
 
-    public Map<String, Object> updateStore(long id, JsonNode body) {
+    public StoreView updateStore(long id, StoreRequest request) {
         return inTransaction(session -> {
             Store store = require(session, Store.class, id);
-            optionalText(body, "code", store::setCode);
-            optionalText(body, "name", store::setName);
-            optionalText(body, "city", store::setCity);
-            optionalText(body, "address", store::setAddress);
+            if (request.code() != null) {
+                store.setCode(requiredText(request.code(), "code"));
+            }
+            if (request.name() != null) {
+                store.setName(requiredText(request.name(), "name"));
+            }
+            if (request.city() != null) {
+                store.setCity(requiredText(request.city(), "city"));
+            }
+            if (request.address() != null) {
+                store.setAddress(requiredText(request.address(), "address"));
+            }
             session.flush();
             return storeDto(store);
         });
@@ -193,7 +227,7 @@ public class CrystalShopService {
         });
     }
 
-    public List<Map<String, Object>> listInventory() {
+    public List<InventoryItemView> listInventory() {
         return inTransaction(session -> session.createQuery("from InventoryItem i order by i.id", InventoryItem.class)
                 .getResultList()
                 .stream()
@@ -201,19 +235,19 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public Map<String, Object> getInventory(long id) {
+    public InventoryItemView getInventory(long id) {
         return inTransaction(session -> inventoryDto(require(session, InventoryItem.class, id)));
     }
 
-    public Map<String, Object> createInventory(JsonNode body) {
+    public InventoryItemView createInventory(InventoryItemRequest request) {
         return inTransaction(session -> {
-            Store store = require(session, Store.class, requiredLong(body, "storeId"));
-            Crystal crystal = require(session, Crystal.class, requiredLong(body, "crystalId"));
+            Store store = require(session, Store.class, requiredLong(request.storeId(), "storeId"));
+            Crystal crystal = require(session, Crystal.class, requiredLong(request.crystalId(), "crystalId"));
             InventoryItem item = new InventoryItem(
                     store,
                     crystal,
-                    requiredInt(body, "quantity", 0),
-                    requiredText(body, "shelfLocation")
+                    requiredInt(request.quantity(), "quantity", 0),
+                    requiredText(request.shelfLocation(), "shelfLocation")
             );
             session.persist(item);
             session.flush();
@@ -221,13 +255,21 @@ public class CrystalShopService {
         });
     }
 
-    public Map<String, Object> updateInventory(long id, JsonNode body) {
+    public InventoryItemView updateInventory(long id, InventoryItemRequest request) {
         return inTransaction(session -> {
             InventoryItem item = require(session, InventoryItem.class, id);
-            optionalLong(body, "storeId", storeId -> item.setStore(require(session, Store.class, storeId)));
-            optionalLong(body, "crystalId", crystalId -> item.setCrystal(require(session, Crystal.class, crystalId)));
-            optionalInt(body, "quantity", 0, item::setQuantity);
-            optionalText(body, "shelfLocation", item::setShelfLocation);
+            if (request.storeId() != null) {
+                item.setStore(require(session, Store.class, requiredLong(request.storeId(), "storeId")));
+            }
+            if (request.crystalId() != null) {
+                item.setCrystal(require(session, Crystal.class, requiredLong(request.crystalId(), "crystalId")));
+            }
+            if (request.quantity() != null) {
+                item.setQuantity(requiredInt(request.quantity(), "quantity", 0));
+            }
+            if (request.shelfLocation() != null) {
+                item.setShelfLocation(requiredText(request.shelfLocation(), "shelfLocation"));
+            }
             session.flush();
             return inventoryDto(item);
         });
@@ -240,7 +282,7 @@ public class CrystalShopService {
         });
     }
 
-    public List<Map<String, Object>> listSales() {
+    public List<SaleView> listSales() {
         return inTransaction(session -> session.createQuery("from Sale s order by s.id", Sale.class)
                 .getResultList()
                 .stream()
@@ -248,30 +290,36 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public Map<String, Object> getSale(long id) {
+    public SaleView getSale(long id) {
         return inTransaction(session -> saleDto(require(session, Sale.class, id)));
     }
 
-    public Map<String, Object> createSale(JsonNode body) {
+    public SaleView createSale(SaleRequest request) {
         return inTransaction(session -> {
-            Store store = require(session, Store.class, requiredLong(body, "storeId"));
-            Customer customer = require(session, Customer.class, requiredLong(body, "customerId"));
-            Sale sale = new Sale(store, customer, requiredDateTime(body, "soldAt"));
-            replaceSaleLines(session, sale, requiredArray(body, "lines"));
+            Store store = require(session, Store.class, requiredLong(request.storeId(), "storeId"));
+            Customer customer = require(session, Customer.class, requiredLong(request.customerId(), "customerId"));
+            Sale sale = new Sale(store, customer, requiredDateTime(request.soldAt(), "soldAt"));
+            replaceSaleLines(session, sale, request.lines());
             session.persist(sale);
             session.flush();
             return saleDto(sale);
         });
     }
 
-    public Map<String, Object> updateSale(long id, JsonNode body) {
+    public SaleView updateSale(long id, SaleRequest request) {
         return inTransaction(session -> {
             Sale sale = require(session, Sale.class, id);
-            optionalLong(body, "storeId", storeId -> sale.setStore(require(session, Store.class, storeId)));
-            optionalLong(body, "customerId", customerId -> sale.setCustomer(require(session, Customer.class, customerId)));
-            optionalDateTime(body, "soldAt", sale::setSoldAt);
-            if (body.has("lines")) {
-                replaceSaleLines(session, sale, requiredArray(body, "lines"));
+            if (request.storeId() != null) {
+                sale.setStore(require(session, Store.class, requiredLong(request.storeId(), "storeId")));
+            }
+            if (request.customerId() != null) {
+                sale.setCustomer(require(session, Customer.class, requiredLong(request.customerId(), "customerId")));
+            }
+            if (request.soldAt() != null) {
+                sale.setSoldAt(requiredDateTime(request.soldAt(), "soldAt"));
+            }
+            if (request.lines() != null) {
+                replaceSaleLines(session, sale, request.lines());
             }
             session.flush();
             return saleDto(sale);
@@ -285,17 +333,20 @@ public class CrystalShopService {
         });
     }
 
-    private void replaceSaleLines(Session session, Sale sale, JsonNode lines) {
-        if (!lines.isArray() || lines.isEmpty()) {
+    private void replaceSaleLines(Session session, Sale sale, List<SaleLineRequest> lines) {
+        if (lines == null || lines.isEmpty()) {
             throw new ApiException(400, "lines must be a non-empty array");
         }
         sale.clearLines();
-        for (JsonNode line : lines) {
-            Crystal crystal = require(session, Crystal.class, requiredLong(line, "crystalId"));
+        for (SaleLineRequest line : lines) {
+            if (line == null) {
+                throw new ApiException(400, "lines entries must be objects");
+            }
+            Crystal crystal = require(session, Crystal.class, requiredLong(line.crystalId(), "crystalId"));
             sale.addLine(new SaleLine(
                     crystal,
-                    requiredInt(line, "quantity", 1),
-                    requiredDecimal(line, "unitPrice")
+                    requiredInt(line.quantity(), "quantity", 1),
+                    requiredDecimal(line.unitPrice(), "unitPrice")
             ));
         }
     }
@@ -324,181 +375,133 @@ public class CrystalShopService {
         return entity;
     }
 
-    private Map<String, Object> crystalDto(Crystal crystal) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", crystal.getId());
-        dto.put("sku", crystal.getSku());
-        dto.put("name", crystal.getName());
-        dto.put("family", crystal.getFamily());
-        dto.put("color", crystal.getColor());
-        dto.put("origin", crystal.getOrigin());
-        dto.put("retailPrice", crystal.getRetailPrice());
-        return dto;
+    private CrystalView crystalDto(Crystal crystal) {
+        return new CrystalView(
+                crystal.getId(),
+                crystal.getSku(),
+                crystal.getName(),
+                crystal.getFamily(),
+                crystal.getColor(),
+                crystal.getOrigin(),
+                crystal.getRetailPrice()
+        );
     }
 
-    private Map<String, Object> customerDto(Customer customer) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", customer.getId());
-        dto.put("name", customer.getName());
-        dto.put("email", customer.getEmail());
-        dto.put("loyaltyTier", customer.getLoyaltyTier());
-        return dto;
+    private CustomerView customerDto(Customer customer) {
+        return new CustomerView(
+                customer.getId(),
+                customer.getName(),
+                customer.getEmail(),
+                customer.getLoyaltyTier()
+        );
     }
 
-    private Map<String, Object> storeDto(Store store) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", store.getId());
-        dto.put("code", store.getCode());
-        dto.put("name", store.getName());
-        dto.put("city", store.getCity());
-        dto.put("address", store.getAddress());
-        return dto;
+    private StoreView storeDto(Store store) {
+        return new StoreView(
+                store.getId(),
+                store.getCode(),
+                store.getName(),
+                store.getCity(),
+                store.getAddress()
+        );
     }
 
-    private Map<String, Object> inventoryDto(InventoryItem item) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", item.getId());
-        dto.put("storeId", item.getStore().getId());
-        dto.put("storeCode", item.getStore().getCode());
-        dto.put("storeName", item.getStore().getName());
-        dto.put("crystalId", item.getCrystal().getId());
-        dto.put("crystalSku", item.getCrystal().getSku());
-        dto.put("crystalName", item.getCrystal().getName());
-        dto.put("quantity", item.getQuantity());
-        dto.put("shelfLocation", item.getShelfLocation());
-        return dto;
+    private InventoryItemView inventoryDto(InventoryItem item) {
+        return new InventoryItemView(
+                item.getId(),
+                item.getStore().getId(),
+                item.getStore().getCode(),
+                item.getStore().getName(),
+                item.getCrystal().getId(),
+                item.getCrystal().getSku(),
+                item.getCrystal().getName(),
+                item.getQuantity(),
+                item.getShelfLocation()
+        );
     }
 
-    private Map<String, Object> saleDto(Sale sale) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", sale.getId());
-        dto.put("storeId", sale.getStore().getId());
-        dto.put("storeCode", sale.getStore().getCode());
-        dto.put("storeName", sale.getStore().getName());
-        dto.put("customerId", sale.getCustomer().getId());
-        dto.put("customerEmail", sale.getCustomer().getEmail());
-        dto.put("customerName", sale.getCustomer().getName());
-        dto.put("soldAt", sale.getSoldAt().toString());
-        dto.put("lines", sale.getLines().stream().map(this::saleLineDto).toList());
-        dto.put("lineSummary", sale.getLines().stream()
+    private SaleView saleDto(Sale sale) {
+        List<SaleLineView> lines = sale.getLines().stream().map(this::saleLineDto).toList();
+        List<String> lineSummary = sale.getLines().stream()
                 .map(line -> line.getCrystal().getSku() + " x" + line.getQuantity())
-                .toList());
-        dto.put("total", sale.getLines().stream()
+                .toList();
+        BigDecimal total = sale.getLines().stream()
                 .map(line -> line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
-        return dto;
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new SaleView(
+                sale.getId(),
+                sale.getStore().getId(),
+                sale.getStore().getCode(),
+                sale.getStore().getName(),
+                sale.getCustomer().getId(),
+                sale.getCustomer().getEmail(),
+                sale.getCustomer().getName(),
+                sale.getSoldAt().toString(),
+                lines,
+                lineSummary,
+                total
+        );
     }
 
-    private Map<String, Object> saleLineDto(SaleLine line) {
-        Map<String, Object> dto = new LinkedHashMap<>();
-        dto.put("id", line.getId());
-        dto.put("crystalId", line.getCrystal().getId());
-        dto.put("crystalSku", line.getCrystal().getSku());
-        dto.put("crystalName", line.getCrystal().getName());
-        dto.put("quantity", line.getQuantity());
-        dto.put("unitPrice", line.getUnitPrice());
-        dto.put("lineTotal", line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())));
-        return dto;
+    private SaleLineView saleLineDto(SaleLine line) {
+        BigDecimal lineTotal = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
+        return new SaleLineView(
+                line.getId(),
+                line.getCrystal().getId(),
+                line.getCrystal().getSku(),
+                line.getCrystal().getName(),
+                line.getQuantity(),
+                line.getUnitPrice(),
+                lineTotal
+        );
     }
 
-    private String requiredText(JsonNode body, String field) {
-        JsonNode value = required(body, field);
-        if (!value.isTextual() || value.asText().isBlank()) {
+    private String requiredText(String value, String field) {
+        if (value == null) {
+            throw new ApiException(400, field + " is required");
+        }
+        if (value.isBlank()) {
             throw new ApiException(400, field + " must be a non-empty string");
-        }
-        return value.asText();
-    }
-
-    private BigDecimal requiredDecimal(JsonNode body, String field) {
-        JsonNode value = required(body, field);
-        try {
-            if (value.isNumber()) {
-                return value.decimalValue();
-            }
-            if (value.isTextual() && !value.asText().isBlank()) {
-                return new BigDecimal(value.asText());
-            }
-        } catch (NumberFormatException e) {
-            throw new ApiException(400, field + " must be a decimal number");
-        }
-        throw new ApiException(400, field + " must be a decimal number");
-    }
-
-    private int requiredInt(JsonNode body, String field, int minimum) {
-        JsonNode value = required(body, field);
-        if (!value.canConvertToInt()) {
-            throw new ApiException(400, field + " must be an integer");
-        }
-        int parsed = value.asInt();
-        if (parsed < minimum) {
-            throw new ApiException(400, field + " must be at least " + minimum);
-        }
-        return parsed;
-    }
-
-    private long requiredLong(JsonNode body, String field) {
-        JsonNode value = required(body, field);
-        if (!value.canConvertToLong()) {
-            throw new ApiException(400, field + " must be a long integer");
-        }
-        return value.asLong();
-    }
-
-    private LocalDateTime requiredDateTime(JsonNode body, String field) {
-        JsonNode value = required(body, field);
-        if (!value.isTextual() || value.asText().isBlank()) {
-            throw new ApiException(400, field + " must be an ISO-8601 local date-time string");
-        }
-        try {
-            return LocalDateTime.parse(value.asText());
-        } catch (DateTimeParseException e) {
-            throw new ApiException(400, field + " must be an ISO-8601 local date-time string");
-        }
-    }
-
-    private JsonNode requiredArray(JsonNode body, String field) {
-        JsonNode value = required(body, field);
-        if (!value.isArray()) {
-            throw new ApiException(400, field + " must be an array");
         }
         return value;
     }
 
-    private JsonNode required(JsonNode body, String field) {
-        JsonNode value = body.get(field);
-        if (value == null || value.isNull()) {
+    private BigDecimal requiredDecimal(BigDecimal value, String field) {
+        if (value == null) {
             throw new ApiException(400, field + " is required");
         }
         return value;
     }
 
-    private void optionalText(JsonNode body, String field, Consumer<String> setter) {
-        if (body.has(field)) {
-            setter.accept(requiredText(body, field));
+    private int requiredInt(Integer value, String field, int minimum) {
+        if (value == null) {
+            throw new ApiException(400, field + " is required");
         }
+        if (value < minimum) {
+            throw new ApiException(400, field + " must be at least " + minimum);
+        }
+        return value;
     }
 
-    private void optionalDecimal(JsonNode body, String field, Consumer<BigDecimal> setter) {
-        if (body.has(field)) {
-            setter.accept(requiredDecimal(body, field));
+    private long requiredLong(Long value, String field) {
+        if (value == null) {
+            throw new ApiException(400, field + " is required");
         }
+        return value;
     }
 
-    private void optionalInt(JsonNode body, String field, int minimum, Consumer<Integer> setter) {
-        if (body.has(field)) {
-            setter.accept(requiredInt(body, field, minimum));
+    private LocalDateTime requiredDateTime(String value, String field) {
+        if (value == null) {
+            throw new ApiException(400, field + " is required");
         }
-    }
-
-    private void optionalLong(JsonNode body, String field, Consumer<Long> setter) {
-        if (body.has(field)) {
-            setter.accept(requiredLong(body, field));
+        if (value.isBlank()) {
+            throw new ApiException(400, field + " must be an ISO-8601 local date-time string");
         }
-    }
-
-    private void optionalDateTime(JsonNode body, String field, Consumer<LocalDateTime> setter) {
-        if (body.has(field)) {
-            setter.accept(requiredDateTime(body, field));
+        try {
+            return LocalDateTime.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new ApiException(400, field + " must be an ISO-8601 local date-time string");
         }
     }
 }

@@ -1,4 +1,4 @@
-package com.luketn.crystalshop.domain;
+package com.luketn.crystalshop.domain.database;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -9,19 +9,21 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-
-import java.math.BigDecimal;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "sale_lines")
-public class SaleLine {
+@Table(
+        name = "inventory_items",
+        uniqueConstraints = @UniqueConstraint(name = "uk_inventory_store_crystal", columnNames = {"store_id", "crystal_id"})
+)
+public class InventoryItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sale_id", nullable = false)
-    private Sale sale;
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "crystal_id", nullable = false)
@@ -30,28 +32,29 @@ public class SaleLine {
     @Column(nullable = false)
     private int quantity;
 
-    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
-    private BigDecimal unitPrice;
+    @Column(name = "shelf_location", nullable = false)
+    private String shelfLocation;
 
-    protected SaleLine() {
+    protected InventoryItem() {
     }
 
-    public SaleLine(Crystal crystal, int quantity, BigDecimal unitPrice) {
+    public InventoryItem(Store store, Crystal crystal, int quantity, String shelfLocation) {
+        this.store = store;
         this.crystal = crystal;
         this.quantity = quantity;
-        this.unitPrice = unitPrice;
+        this.shelfLocation = shelfLocation;
     }
 
     public Long getId() {
         return id;
     }
 
-    public Sale getSale() {
-        return sale;
+    public Store getStore() {
+        return store;
     }
 
-    void setSale(Sale sale) {
-        this.sale = sale;
+    public void setStore(Store store) {
+        this.store = store;
     }
 
     public Crystal getCrystal() {
@@ -70,11 +73,11 @@ public class SaleLine {
         this.quantity = quantity;
     }
 
-    public BigDecimal getUnitPrice() {
-        return unitPrice;
+    public String getShelfLocation() {
+        return shelfLocation;
     }
 
-    public void setUnitPrice(BigDecimal unitPrice) {
-        this.unitPrice = unitPrice;
+    public void setShelfLocation(String shelfLocation) {
+        this.shelfLocation = shelfLocation;
     }
 }
