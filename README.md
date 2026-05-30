@@ -43,8 +43,10 @@ In another terminal:
 
 ```sh
 JAVA_HOME=$(/usr/libexec/java_home -v 25) \
-DB_URL='<printed MongoDB replica-set URI>' \
+DB_URL='mongodb://localhost:27017/test' \
 mvn -q exec:java -Dexec.mainClass=com.luketn.crystalshop.Main
 ```
+
+If the fixture prints a different URI, use that value for `DB_URL`.
 
 Port `27017` must be free before starting the fixture.

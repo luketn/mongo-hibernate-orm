@@ -2,15 +2,15 @@
 
 ## Migration Checklist
 
-- [ ] Add the failing MongoDB tests first. Make only the minimal dependency additions needed for the test sources to compile. The first red tests should cover Mongo `SessionFactory` boot, dependency convergence, `ObjectId` IDs, `Instant` sale timestamps, embedded sale lines, sample data import, HTTP ID round trips, reporting, and Playwright.
-- [ ] Run the new MongoDB tests and confirm they fail for expected migration reasons: current PostgreSQL config, `Long` IDs, relational associations, UI numeric ID parsing, and PostgreSQL SQL reporting.
-- [ ] Align dependencies: add `org.mongodb:mongodb-hibernate:1.0.0-alpha0`, add `org.testcontainers:mongodb`, and remove or downgrade the explicit `hibernate-core` `7.3.3.Final` pin. The published extension POM currently depends on Hibernate ORM `6.6.34.Final`.
-- [ ] Make the boot/config tests pass by replacing PostgreSQL connection settings with MongoDB settings, using `MongoDialect`, `MongoConnectionProvider`, and a replica-set MongoDB URI.
-- [ ] Make the mapping tests pass by converting generated `Long` IDs to `ObjectId`, exposing IDs as opaque `String` values, converting `soldAt` to `Instant`, and embedding sale lines in `Sale`.
-- [ ] Make the service/API/UI tests pass by updating lookups, delete checks, view mappers, request payloads, and browser ID handling so they use string/ObjectId IDs and do not rely on joins.
-- [ ] Make the index test pass by creating Mongo indexes through the Java driver.
-- [ ] Make the reporting test pass by replacing PostgreSQL SQL with `MongoSalesReportingService`, preferably using Java driver aggregation builders.
-- [ ] Run the full MongoDB test suite, inspect generated documents/indexes, then remove PostgreSQL dependencies, defaults, and test helpers.
+- [x] Add the failing MongoDB tests first. Make only the minimal dependency additions needed for the test sources to compile. The first red tests should cover Mongo `SessionFactory` boot, dependency convergence, `ObjectId` IDs, `Instant` sale timestamps, embedded sale lines, sample data import, HTTP ID round trips, reporting, and Playwright.
+- [x] Run the new MongoDB tests and confirm they fail for expected migration reasons: current PostgreSQL config, `Long` IDs, relational associations, UI numeric ID parsing, and PostgreSQL SQL reporting.
+- [x] Align dependencies: add `org.mongodb:mongodb-hibernate:1.0.0-alpha0`, add `org.testcontainers:mongodb`, and remove or downgrade the explicit `hibernate-core` `7.3.3.Final` pin. The published extension POM currently depends on Hibernate ORM `6.6.34.Final`.
+- [x] Make the boot/config tests pass by replacing PostgreSQL connection settings with MongoDB settings, using `MongoDialect`, `MongoConnectionProvider`, and a replica-set MongoDB URI.
+- [x] Make the mapping tests pass by converting generated `Long` IDs to `ObjectId`, exposing IDs as opaque `String` values, converting `soldAt` to `Instant`, and embedding sale lines in `Sale`.
+- [x] Make the service/API/UI tests pass by updating lookups, delete checks, view mappers, request payloads, and browser ID handling so they use string/ObjectId IDs and do not rely on joins.
+- [x] Make the index test pass by creating Mongo indexes through the Java driver.
+- [x] Make the reporting test pass by replacing PostgreSQL SQL with `MongoSalesReportingService`, preferably using Java driver aggregation builders.
+- [x] Run the full MongoDB test suite, inspect generated documents/indexes, then remove PostgreSQL dependencies, defaults, and test helpers.
 
 This document explains how to migrate the Crystal Shop application from PostgreSQL to MongoDB with the smallest practical code change set, using the official MongoDB Extension for Hibernate ORM.
 
