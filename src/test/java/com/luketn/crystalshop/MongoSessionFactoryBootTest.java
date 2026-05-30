@@ -1,7 +1,11 @@
 package com.luketn.crystalshop;
 
-import com.luketn.crystalshop.domain.database.Crystal;
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import com.luketn.crystalshop.persistence.HibernateSupport;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import org.bson.types.ObjectId;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MongoDBContainer;
@@ -19,16 +23,47 @@ class MongoSessionFactoryBootTest {
     void bootsHibernateSessionFactoryAgainstMongoReplicaSet() {
         assertDoesNotThrow(() -> {
             try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(
-                    MongoTestSupport.mongoConfig(mongo, "none", 0)
+                    MongoTestSupport.mongoConfig(mongo, "none", 0),
+                    BootProbe.class
             )) {
                 try (var session = sessionFactory.openSession()) {
                     var transaction = session.beginTransaction();
-                    session.createQuery("from Crystal c order by c.id", Crystal.class)
-                            .setMaxResults(1)
-                            .getResultList();
+                    BootProbe probe = new BootProbe("ready");
+                    session.persist(probe);
+                    session.flush();
+                    session.find(BootProbe.class, probe.getId());
                     transaction.commit();
                 }
             }
         });
+    }
+
+    @Entity
+    @Table(name = "boot_probe")
+    public static class BootProbe {
+        @Id
+        @ObjectIdGenerator
+        private ObjectId id;
+
+        private String name;
+
+        protected BootProbe() {
+        }
+
+        BootProbe(String name) {
+            this.name = name;
+        }
+
+        public ObjectId getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 }

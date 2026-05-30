@@ -13,7 +13,7 @@ final class MongoTestSupport {
     }
 
     static AppConfig mongoConfig(MongoDBContainer mongo, String schemaAction, int port) {
-        return new AppConfig(mongo.getReplicaSetUrl(), "", "", schemaAction, port);
+        return new AppConfig(mongo.getReplicaSetUrl(), schemaAction, port);
     }
 
     static MongoClient mongoClient(MongoDBContainer mongo) {
