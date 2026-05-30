@@ -16,7 +16,11 @@ import com.mongodb.client.model.mql.MqlDate;
 import com.mongodb.client.model.mql.MqlNumber;
 import com.mongodb.client.model.mql.MqlString;
 import com.mongodb.client.model.mql.MqlValue;
-import org.bson.Document;
+import org.bson.BsonDocument;
+import org.bson.BsonDocumentWriter;
+import org.bson.codecs.Encoder;
+import org.bson.codecs.EncoderContext;
+import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.conversions.Bson;
 import org.bson.types.Decimal128;
 import org.bson.types.ObjectId;
@@ -117,10 +121,10 @@ public class CrystalShopReportingService {
         return database.getCollection("sales")
                 .aggregate(yearlyLinePipeline(
                         window,
-                        group(groupKey(
-                                        new Field<>("weekStart", dateTrunc(date("soldAt"), "week")),
-                                        new Field<>("crystalSku", lineString("crystalSku")),
-                                        new Field<>("crystalName", lineString("crystalName"))),
+                        group(new WeeklyProductGroupKey(
+                                        dateTrunc(date("soldAt"), "week"),
+                                        lineString("crystalSku"),
+                                        lineString("crystalName")),
                                 sum("unitsSold", lineNumber("quantity")),
                                 sum("revenue", number("lineRevenue")),
                                 sum("profit", number("lineProfit"))),
@@ -230,9 +234,9 @@ public class CrystalShopReportingService {
         List<Bson> pipeline = yearlyLinePipeline(
                 window,
                 set(new Field<>("saleMonth", date("soldAt").month(of("UTC")))),
-                group(groupKey(
-                                new Field<>("crystalSku", lineString("crystalSku")),
-                                new Field<>("crystalName", lineString("crystalName"))),
+                group(new ProductGroupKey(
+                                lineString("crystalSku"),
+                                lineString("crystalName")),
                         sum("unitsSold", lineNumber("quantity")),
                         sum("revenue", number("lineRevenue")),
                         sum("profit", number("lineProfit")),
@@ -258,16 +262,13 @@ public class CrystalShopReportingService {
     }
 
     private List<SaleActivity> saleActivity(MongoDatabase database, Instant start, Instant end) {
-        List<Document> rows = database.getCollection("sales")
+        return database.getCollection("sales")
                 .find(and(
                         gte("soldAt", Date.from(start)),
                         lt("soldAt", Date.from(end))
-                ))
+                ), SaleActivity.class)
                 .projection(include("customerId", "soldAt"))
                 .into(new ArrayList<>());
-        return rows.stream()
-                .map(row -> new SaleActivity(row.getObjectId("customerId"), instant(row.get("soldAt"))))
-                .toList();
     }
 
     private List<String> recommendations(
@@ -336,14 +337,6 @@ public class CrystalShopReportingService {
                 forecast.projectedUnits(),
                 forecast.growthRate().setScale(4, RoundingMode.HALF_UP)
         );
-    }
-
-    private Document groupKey(Field<?>... fields) {
-        Document key = new Document();
-        for (Field<?> field : fields) {
-            key.append(field.getName(), field.getValue());
-        }
-        return key;
     }
 
     private MqlNumber margin() {
@@ -427,29 +420,16 @@ public class CrystalShopReportingService {
         return of(Decimal128.parse(value));
     }
 
-    private Document dateTrunc(MqlDate date, String unit) {
-        return operator("$dateTrunc", new Document("date", date)
-                .append("unit", unit)
-                .append("startOfWeek", "Monday")
-                .append("timezone", "UTC"));
+    private Bson dateTrunc(MqlDate date, String unit) {
+        return operator("$dateTrunc", new DateTruncExpression(date, unit));
     }
 
-    private Document ceilToInt(MqlNumber expression) {
+    private Bson ceilToInt(MqlNumber expression) {
         return operator("$toInt", operator("$ceil", expression));
     }
 
-    private Document operator(String operator, Object expression) {
-        return new Document(operator, expression);
-    }
-
-    private Instant instant(Object value) {
-        if (value instanceof Date date) {
-            return date.toInstant();
-        }
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        return Instant.parse(value.toString());
+    private Bson operator(String operator, Object expression) {
+        return new OperatorExpression(operator, expression);
     }
 
     private String databaseName(ConnectionString connectionString) {
@@ -471,9 +451,79 @@ public class CrystalShopReportingService {
         }
     }
 
-    private record SaleActivity(ObjectId customerId, Instant soldAt) {
+    public record SaleActivity(ObjectId customerId, Instant soldAt) {
         LocalDate soldDate() {
             return soldAt.atZone(ZoneOffset.UTC).toLocalDate();
+        }
+    }
+
+    private record WeeklyProductGroupKey(Bson weekStart, MqlString crystalSku, MqlString crystalName) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("weekStart", weekStart),
+                    new Field<>("crystalSku", crystalSku),
+                    new Field<>("crystalName", crystalName)
+            );
+        }
+    }
+
+    private record ProductGroupKey(MqlString crystalSku, MqlString crystalName) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("crystalSku", crystalSku),
+                    new Field<>("crystalName", crystalName)
+            );
+        }
+    }
+
+    private record DateTruncExpression(MqlDate date, String unit) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("date", date),
+                    new Field<>("unit", unit),
+                    new Field<>("startOfWeek", "Monday"),
+                    new Field<>("timezone", "UTC")
+            );
+        }
+    }
+
+    private record OperatorExpression(String operator, Object expression) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry, new Field<>(operator, expression));
+        }
+    }
+
+    private static BsonDocument bsonDocument(CodecRegistry codecRegistry, Field<?>... fields) {
+        BsonDocumentWriter writer = new BsonDocumentWriter(new BsonDocument());
+        writer.writeStartDocument();
+        for (Field<?> field : fields) {
+            writer.writeName(field.getName());
+            encodeValue(writer, field.getValue(), codecRegistry);
+        }
+        writer.writeEndDocument();
+        return writer.getDocument();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void encodeValue(BsonDocumentWriter writer, Object value, CodecRegistry codecRegistry) {
+        if (value == null) {
+            writer.writeNull();
+        } else if (value instanceof Bson bson) {
+            codecRegistry.get(BsonDocument.class).encode(
+                    writer,
+                    bson.toBsonDocument(BsonDocument.class, codecRegistry),
+                    EncoderContext.builder().build()
+            );
+        } else {
+            ((Encoder) codecRegistry.get(value.getClass())).encode(
+                    writer,
+                    value,
+                    EncoderContext.builder().build()
+            );
         }
     }
 }
