@@ -136,10 +136,7 @@ public class CrystalShopReportingService {
                                 computed("crystalName", string("_id", "crystalName")),
                                 include("unitsSold", "revenue", "profit")))
                 ), WeeklySalesTrend.class)
-                .into(new ArrayList<>())
-                .stream()
-                .map(this::weeklySalesTrend)
-                .toList();
+                .into(new ArrayList<>());
     }
 
     private List<MonthlyCustomerRetention> monthlyCustomerRetention(MongoDatabase database, ReportWindow window) {
@@ -188,10 +185,7 @@ public class CrystalShopReportingService {
                                 computed("crystalName", string("_id", "crystalName")),
                                 include("unitsSold", "revenue", "profit", "margin")))
                 ), ProductSalesInsight.class)
-                .into(new ArrayList<>())
-                .stream()
-                .map(this::productSalesInsight)
-                .toList();
+                .into(new ArrayList<>());
     }
 
     private List<ProductForecast> forecasts(MongoDatabase database, ReportWindow window) {
@@ -212,10 +206,7 @@ public class CrystalShopReportingService {
                                 include("projectedRevenue", "projectedUnits"),
                                 computed("growthRate", number("growthRate").round(of(4)))))
                 ), ProductForecast.class)
-                .into(new ArrayList<>())
-                .stream()
-                .map(this::productForecast)
-                .toList();
+                .into(new ArrayList<>());
     }
 
     private List<Bson> yearlyLinePipeline(ReportWindow window, Bson... terminalStages) {
@@ -303,47 +294,11 @@ public class CrystalShopReportingService {
         return recommendations;
     }
 
-    private BigDecimal money(BigDecimal value) {
-        return value.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private WeeklySalesTrend weeklySalesTrend(WeeklySalesTrend trend) {
-        return new WeeklySalesTrend(
-                trend.weekStart(),
-                trend.crystalSku(),
-                trend.crystalName(),
-                trend.unitsSold(),
-                money(trend.revenue()),
-                money(trend.profit())
-        );
-    }
-
-    private ProductSalesInsight productSalesInsight(ProductSalesInsight product) {
-        return new ProductSalesInsight(
-                product.crystalSku(),
-                product.crystalName(),
-                product.unitsSold(),
-                money(product.revenue()),
-                money(product.profit()),
-                product.margin().setScale(4, RoundingMode.HALF_UP)
-        );
-    }
-
-    private ProductForecast productForecast(ProductForecast forecast) {
-        return new ProductForecast(
-                forecast.crystalSku(),
-                forecast.crystalName(),
-                money(forecast.projectedRevenue()),
-                forecast.projectedUnits(),
-                forecast.growthRate().setScale(4, RoundingMode.HALF_UP)
-        );
-    }
-
     private MqlNumber margin() {
         return when(
                 number("revenue").eq(decimal("0")),
-                decimal("0"),
-                number("profit").divide(number("revenue"))
+                decimal("0.0000"),
+                number("profit").divide(number("revenue")).round(of(4))
         );
     }
 

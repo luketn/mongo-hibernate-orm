@@ -88,6 +88,19 @@ class MongoReportingServiceTest {
             assertTwoDecimalScale(report.totals().revenue());
             assertTwoDecimalScale(report.totals().profit());
             assertTwoDecimalScale(report.totals().costs());
+            report.weeklySalesTrends().forEach(trend -> {
+                assertTwoDecimalScale(trend.revenue());
+                assertTwoDecimalScale(trend.profit());
+            });
+            report.bestSellingProducts().forEach(product -> {
+                assertTwoDecimalScale(product.revenue());
+                assertTwoDecimalScale(product.profit());
+                assertFourDecimalScale(product.margin());
+            });
+            report.forecasts().forEach(forecast -> {
+                assertTwoDecimalScale(forecast.projectedRevenue());
+                assertFourDecimalScale(forecast.growthRate());
+            });
         }
     }
 
@@ -104,5 +117,10 @@ class MongoReportingServiceTest {
     private void assertTwoDecimalScale(BigDecimal value) {
         assertNotNull(value);
         assertEquals(2, value.scale(), value.toPlainString());
+    }
+
+    private void assertFourDecimalScale(BigDecimal value) {
+        assertNotNull(value);
+        assertEquals(4, value.scale(), value.toPlainString());
     }
 }
