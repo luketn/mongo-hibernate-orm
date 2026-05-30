@@ -40,7 +40,7 @@ public class CrystalShopService {
     }
 
     public List<CrystalView> listCrystals() {
-        return inTransaction(session -> session.createQuery("from Crystal c order by c.sku", Crystal.class)
+        return inTransaction(session -> session.createQuery("from Crystal c order by c.id", Crystal.class)
                 .getResultList()
                 .stream()
                 .map(CrystalView::from)
@@ -132,7 +132,7 @@ public class CrystalShopService {
     }
 
     public List<CustomerView> listCustomers() {
-        return inTransaction(session -> session.createQuery("from Customer c order by c.email", Customer.class)
+        return inTransaction(session -> session.createQuery("from Customer c order by c.id", Customer.class)
                 .getResultList()
                 .stream()
                 .map(CustomerView::from)
@@ -181,7 +181,7 @@ public class CrystalShopService {
     }
 
     public List<StoreView> listStores() {
-        return inTransaction(session -> session.createQuery("from Store s order by s.code", Store.class)
+        return inTransaction(session -> session.createQuery("from Store s order by s.id", Store.class)
                 .getResultList()
                 .stream()
                 .map(StoreView::from)
@@ -237,7 +237,7 @@ public class CrystalShopService {
         return inTransaction(session -> {
             Map<ObjectId, StoreView> stores = storeViewsById(session);
             Map<ObjectId, CrystalView> crystals = crystalViewsById(session);
-            return session.createQuery("from InventoryItem i order by i.shelfLocation", InventoryItem.class)
+            return session.createQuery("from InventoryItem i order by i.id", InventoryItem.class)
                     .getResultList()
                     .stream()
                     .map(item -> InventoryItemView.from(
@@ -311,7 +311,7 @@ public class CrystalShopService {
         return inTransaction(session -> {
             Map<ObjectId, StoreView> stores = storeViewsById(session);
             Map<ObjectId, CustomerView> customers = customerViewsById(session);
-            return session.createQuery("from Sale s order by s.soldAt", Sale.class)
+            return session.createQuery("from Sale s order by s.id", Sale.class)
                     .getResultList()
                     .stream()
                     .map(sale -> SaleView.from(
