@@ -7,35 +7,81 @@ import com.luketn.crystalshop.domain.api.ProductSalesInsight;
 import com.luketn.crystalshop.domain.api.ReportTotals;
 import com.luketn.crystalshop.domain.api.WeeklySalesTrend;
 import com.luketn.crystalshop.http.ApiException;
-import org.hibernate.Session;
-import org.hibernate.SessionFactory;
-import org.hibernate.Transaction;
-import org.hibernate.query.NativeQuery;
+import com.mongodb.ConnectionString;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Field;
+import com.mongodb.client.model.mql.MqlBoolean;
+import com.mongodb.client.model.mql.MqlDate;
+import com.mongodb.client.model.mql.MqlNumber;
+import com.mongodb.client.model.mql.MqlString;
+import com.mongodb.client.model.mql.MqlValue;
+import org.bson.BsonDocument;
+import org.bson.BsonDocumentWriter;
+import org.bson.codecs.Encoder;
+import org.bson.codecs.EncoderContext;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.conversions.Bson;
+import org.bson.types.Decimal128;
+import org.bson.types.ObjectId;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Map;
+import java.util.Set;
+
+import static com.mongodb.client.model.Accumulators.addToSet;
+import static com.mongodb.client.model.Accumulators.sum;
+import static com.mongodb.client.model.Aggregates.group;
+import static com.mongodb.client.model.Aggregates.limit;
+import static com.mongodb.client.model.Aggregates.match;
+import static com.mongodb.client.model.Aggregates.project;
+import static com.mongodb.client.model.Aggregates.set;
+import static com.mongodb.client.model.Aggregates.sort;
+import static com.mongodb.client.model.Aggregates.unwind;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.gte;
+import static com.mongodb.client.model.Filters.lt;
+import static com.mongodb.client.model.Projections.computed;
+import static com.mongodb.client.model.Projections.excludeId;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
+import static com.mongodb.client.model.Sorts.ascending;
+import static com.mongodb.client.model.Sorts.descending;
+import static com.mongodb.client.model.Sorts.orderBy;
+import static com.mongodb.client.model.mql.MqlValues.current;
+import static com.mongodb.client.model.mql.MqlValues.of;
 
 public class CrystalShopReportingService {
-    private final SessionFactory sessionFactory;
+    private final String databaseUrl;
 
-    public CrystalShopReportingService(SessionFactory sessionFactory) {
-        this.sessionFactory = sessionFactory;
+    public CrystalShopReportingService(String databaseUrl) {
+        this.databaseUrl = databaseUrl;
     }
 
     public AnnualSalesReport annualSalesReport(int year) {
         if (year < 2000 || year > 2100) {
             throw new ApiException(400, "year must be between 2000 and 2100");
         }
-        return inTransaction(session -> {
+
+        ConnectionString connectionString = new ConnectionString(databaseUrl);
+        try (var client = MongoClients.create(connectionString)) {
+            MongoDatabase database = client.getDatabase(databaseName(connectionString));
             ReportWindow window = new ReportWindow(year);
-            ReportTotals totals = totals(session, window);
-            List<WeeklySalesTrend> weeklySalesTrends = weeklySalesTrends(session, window);
-            List<MonthlyCustomerRetention> monthlyCustomerRetention = monthlyCustomerRetention(session, window);
-            List<ProductSalesInsight> bestSellingProducts = bestSellingProducts(session, window);
-            List<ProductForecast> forecasts = forecasts(session, window);
+            ReportTotals totals = totals(database, window);
+            List<WeeklySalesTrend> weeklySalesTrends = weeklySalesTrends(database, window);
+            List<MonthlyCustomerRetention> monthlyCustomerRetention = monthlyCustomerRetention(database, window);
+            List<ProductSalesInsight> bestSellingProducts = bestSellingProducts(database, window);
+            List<ProductForecast> forecasts = forecasts(database, window);
             return new AnnualSalesReport(
                     year,
                     year + 1,
@@ -46,272 +92,174 @@ public class CrystalShopReportingService {
                     forecasts,
                     recommendations(totals, monthlyCustomerRetention, bestSellingProducts, forecasts)
             );
-        });
+        }
     }
 
-    private ReportTotals totals(Session session, ReportWindow window) {
-        String sql = """
-                with report_lines as (
-                    select
-                        sl.sale_id,
-                        s.customer_id,
-                        sl.quantity,
-                        sl.quantity * sl.unit_price as revenue,
-                        sl.quantity * coalesce(c.wholesale_cost, c.retail_price * 0.55) as costs,
-                        sl.quantity * (sl.unit_price - coalesce(c.wholesale_cost, c.retail_price * 0.55)) as profit
-                    from sales s
-                    join sale_lines sl on sl.sale_id = s.id
-                    join crystals c on c.id = sl.crystal_id
-                    where s.sold_at >= cast(:yearStart as timestamp)
-                      and s.sold_at < cast(:nextYear as timestamp)
-                ),
-                annual_totals as (
-                    select
-                        coalesce(sum(revenue), 0) as revenue,
-                        coalesce(sum(profit), 0) as profit,
-                        coalesce(sum(costs), 0) as costs,
-                        coalesce(sum(quantity), 0) as units_sold,
-                        count(distinct sale_id) as sales_count,
-                        count(distinct customer_id) as active_customers
-                    from report_lines
-                )
-                select revenue, profit, costs, units_sold, sales_count, active_customers
-                from annual_totals
-                """;
-        Object[] row = singleRow(query(session, sql, window));
-        return new ReportTotals(
-                money(row[0]),
-                money(row[1]),
-                money(row[2]),
-                integer(row[3]),
-                integer(row[4]),
-                integer(row[5])
+    private ReportTotals totals(MongoDatabase database, ReportWindow window) {
+        ReportTotals result = database.getCollection("sales")
+                .aggregate(yearlyLinePipeline(
+                        window,
+                        group(null,
+                                sum("revenue", number("lineRevenue")),
+                                sum("profit", number("lineProfit")),
+                                sum("costs", number("lineCost")),
+                                sum("unitsSold", lineNumber("quantity")),
+                                addToSet("saleIds", value("_id")),
+                                addToSet("customerIds", value("customerId"))),
+                        project(fields(
+                                excludeId(),
+                                include("revenue", "profit", "costs", "unitsSold"),
+                                computed("salesCount", arraySize("saleIds")),
+                                computed("activeCustomers", arraySize("customerIds"))))
+                ), ReportTotals.class)
+                .first();
+
+        return result == null ? ReportTotals.ZERO : result;
+    }
+
+    private List<WeeklySalesTrend> weeklySalesTrends(MongoDatabase database, ReportWindow window) {
+        return database.getCollection("sales")
+                .aggregate(yearlyLinePipeline(
+                        window,
+                        group(new WeeklyProductGroupKey(
+                                        dateTrunc(date("soldAt"), "week"),
+                                        lineString("crystalSku"),
+                                        lineString("crystalName")),
+                                sum("unitsSold", lineNumber("quantity")),
+                                sum("revenue", number("lineRevenue")),
+                                sum("profit", number("lineProfit"))),
+                        sort(ascending("_id.weekStart", "_id.crystalSku")),
+                        project(fields(
+                                excludeId(),
+                                computed("weekStart", date("_id", "weekStart").asString(of("UTC"), of("%Y-%m-%d"))),
+                                computed("crystalSku", string("_id", "crystalSku")),
+                                computed("crystalName", string("_id", "crystalName")),
+                                include("unitsSold", "revenue", "profit")))
+                ), WeeklySalesTrend.class)
+                .into(new ArrayList<>());
+    }
+
+    private List<MonthlyCustomerRetention> monthlyCustomerRetention(MongoDatabase database, ReportWindow window) {
+        List<SaleActivity> monthlyActivity = saleActivity(database, window.retentionStart(), window.nextYear());
+        List<SaleActivity> firstSeenActivity = saleActivity(database, Instant.EPOCH, window.nextYear());
+
+        Map<YearMonth, Set<ObjectId>> activeByMonth = new HashMap<>();
+        for (SaleActivity sale : monthlyActivity) {
+            YearMonth month = YearMonth.from(sale.soldDate());
+            activeByMonth.computeIfAbsent(month, ignored -> new HashSet<>()).add(sale.customerId());
+        }
+
+        Map<ObjectId, YearMonth> firstSeen = new HashMap<>();
+        for (SaleActivity sale : firstSeenActivity) {
+            YearMonth month = YearMonth.from(sale.soldDate());
+            firstSeen.merge(sale.customerId(), month, (left, right) -> left.isBefore(right) ? left : right);
+        }
+
+        List<MonthlyCustomerRetention> retention = new ArrayList<>();
+        for (int monthNumber = 1; monthNumber <= 12; monthNumber++) {
+            YearMonth month = YearMonth.of(window.year(), monthNumber);
+            YearMonth previousMonth = month.minusMonths(1);
+            Set<ObjectId> active = activeByMonth.getOrDefault(month, Set.of());
+            Set<ObjectId> previousActive = activeByMonth.getOrDefault(previousMonth, Set.of());
+            int gained = (int) firstSeen.values().stream()
+                    .filter(firstMonth -> firstMonth.equals(month))
+                    .count();
+            int lost = (int) previousActive.stream()
+                    .filter(customerId -> !active.contains(customerId))
+                    .count();
+            retention.add(new MonthlyCustomerRetention(month.toString(), gained, lost, active.size()));
+        }
+        return retention;
+    }
+
+    private List<ProductSalesInsight> bestSellingProducts(MongoDatabase database, ReportWindow window) {
+        return database.getCollection("sales")
+                .aggregate(productSummaryPipeline(
+                        window,
+                        set(new Field<>("margin", margin())),
+                        sort(orderBy(descending("revenue"), descending("unitsSold"))),
+                        limit(5),
+                        project(fields(
+                                excludeId(),
+                                computed("crystalSku", string("_id", "crystalSku")),
+                                computed("crystalName", string("_id", "crystalName")),
+                                include("unitsSold", "revenue", "profit", "margin")))
+                ), ProductSalesInsight.class)
+                .into(new ArrayList<>());
+    }
+
+    private List<ProductForecast> forecasts(MongoDatabase database, ReportWindow window) {
+        return database.getCollection("sales")
+                .aggregate(productSummaryPipeline(
+                        window,
+                        set(new Field<>("rawGrowthRate", rawGrowthRate())),
+                        set(new Field<>("growthRate", growthRate())),
+                        set(
+                                new Field<>("projectedRevenue", projectedRevenue()),
+                                new Field<>("projectedUnits", ceilToInt(projectedUnits()))),
+                        sort(descending("projectedRevenue")),
+                        limit(5),
+                        project(fields(
+                                excludeId(),
+                                computed("crystalSku", string("_id", "crystalSku")),
+                                computed("crystalName", string("_id", "crystalName")),
+                                include("projectedRevenue", "projectedUnits"),
+                                computed("growthRate", number("growthRate").round(of(4)))))
+                ), ProductForecast.class)
+                .into(new ArrayList<>());
+    }
+
+    private List<Bson> yearlyLinePipeline(ReportWindow window, Bson... terminalStages) {
+        List<Bson> pipeline = new ArrayList<>();
+        pipeline.add(match(and(
+                gte("soldAt", Date.from(window.start())),
+                lt("soldAt", Date.from(window.nextYear()))
+        )));
+        pipeline.add(unwind("$lines"));
+        pipeline.add(computedLineFields());
+        pipeline.addAll(List.of(terminalStages));
+        return pipeline;
+    }
+
+    private List<Bson> productSummaryPipeline(ReportWindow window, Bson... terminalStages) {
+        List<Bson> pipeline = yearlyLinePipeline(
+                window,
+                set(new Field<>("saleMonth", date("soldAt").month(of("UTC")))),
+                group(new ProductGroupKey(
+                                lineString("crystalSku"),
+                                lineString("crystalName")),
+                        sum("unitsSold", lineNumber("quantity")),
+                        sum("revenue", number("lineRevenue")),
+                        sum("profit", number("lineProfit")),
+                        sum("firstHalfRevenue", when(
+                                number("saleMonth").lte(of(6)),
+                                number("lineRevenue"),
+                                decimal("0"))),
+                        sum("secondHalfRevenue", when(
+                                number("saleMonth").gt(of(6)),
+                                number("lineRevenue"),
+                                decimal("0"))))
+        );
+        pipeline.addAll(List.of(terminalStages));
+        return pipeline;
+    }
+
+    private Bson computedLineFields() {
+        return set(
+                new Field<>("lineRevenue", lineRevenue()),
+                new Field<>("lineCost", lineCost()),
+                new Field<>("lineProfit", lineProfit())
         );
     }
 
-    private List<WeeklySalesTrend> weeklySalesTrends(Session session, ReportWindow window) {
-        String sql = """
-                with report_lines as (
-                    select
-                        date_trunc('week', s.sold_at)::date as week_start,
-                        c.sku as crystal_sku,
-                        c.name as crystal_name,
-                        sl.quantity,
-                        sl.quantity * sl.unit_price as revenue,
-                        sl.quantity * (sl.unit_price - coalesce(c.wholesale_cost, c.retail_price * 0.55)) as profit
-                    from sales s
-                    join sale_lines sl on sl.sale_id = s.id
-                    join crystals c on c.id = sl.crystal_id
-                    where s.sold_at >= cast(:yearStart as timestamp)
-                      and s.sold_at < cast(:nextYear as timestamp)
-                ),
-                weekly as (
-                    select
-                        week_start,
-                        crystal_sku,
-                        crystal_name,
-                        sum(quantity) as units_sold,
-                        sum(revenue) as revenue,
-                        sum(profit) as profit
-                    from report_lines
-                    group by week_start, crystal_sku, crystal_name
-                )
-                select
-                    to_char(week_start, 'YYYY-MM-DD') as week_start,
-                    crystal_sku,
-                    crystal_name,
-                    units_sold,
-                    revenue,
-                    profit
-                from weekly
-                order by week_start, crystal_sku
-                """;
-        return query(session, sql, window).stream()
-                .map(row -> new WeeklySalesTrend(
-                        string(row[0]),
-                        string(row[1]),
-                        string(row[2]),
-                        integer(row[3]),
-                        money(row[4]),
-                        money(row[5])
-                ))
-                .toList();
-    }
-
-    private List<MonthlyCustomerRetention> monthlyCustomerRetention(Session session, ReportWindow window) {
-        String sql = """
-                with months as (
-                    select generate_series(
-                        cast(:yearStart as date),
-                        cast(:nextYear as date) - interval '1 month',
-                        interval '1 month'
-                    )::date as month_start
-                ),
-                monthly_active as (
-                    select distinct
-                        date_trunc('month', sold_at)::date as month_start,
-                        customer_id
-                    from sales
-                    where sold_at >= cast(:yearStart as timestamp) - interval '1 month'
-                      and sold_at < cast(:nextYear as timestamp)
-                ),
-                first_seen as (
-                    select
-                        customer_id,
-                        min(date_trunc('month', sold_at)::date) as first_month
-                    from sales
-                    group by customer_id
-                ),
-                gained as (
-                    select
-                        m.month_start,
-                        count(fs.customer_id) as customers_gained
-                    from months m
-                    left join first_seen fs on fs.first_month = m.month_start
-                    group by m.month_start
-                ),
-                lost as (
-                    select
-                        m.month_start,
-                        count(previous.customer_id) filter (where current_month.customer_id is null) as customers_lost
-                    from months m
-                    left join monthly_active previous
-                        on previous.month_start = (m.month_start - interval '1 month')::date
-                    left join monthly_active current_month
-                        on current_month.month_start = m.month_start
-                       and current_month.customer_id = previous.customer_id
-                    group by m.month_start
-                ),
-                active as (
-                    select
-                        m.month_start,
-                        count(current_month.customer_id) as active_customers
-                    from months m
-                    left join monthly_active current_month on current_month.month_start = m.month_start
-                    group by m.month_start
-                )
-                select
-                    to_char(m.month_start, 'YYYY-MM') as month,
-                    coalesce(g.customers_gained, 0) as customers_gained,
-                    coalesce(l.customers_lost, 0) as customers_lost,
-                    coalesce(a.active_customers, 0) as active_customers
-                from months m
-                left join gained g on g.month_start = m.month_start
-                left join lost l on l.month_start = m.month_start
-                left join active a on a.month_start = m.month_start
-                order by m.month_start
-                """;
-        return query(session, sql, window).stream()
-                .map(row -> new MonthlyCustomerRetention(
-                        string(row[0]),
-                        integer(row[1]),
-                        integer(row[2]),
-                        integer(row[3])
-                ))
-                .toList();
-    }
-
-    private List<ProductSalesInsight> bestSellingProducts(Session session, ReportWindow window) {
-        String sql = """
-                with product_sales as (
-                    select
-                        c.sku as crystal_sku,
-                        c.name as crystal_name,
-                        sum(sl.quantity) as units_sold,
-                        sum(sl.quantity * sl.unit_price) as revenue,
-                        sum(sl.quantity * (sl.unit_price - coalesce(c.wholesale_cost, c.retail_price * 0.55))) as profit
-                    from sales s
-                    join sale_lines sl on sl.sale_id = s.id
-                    join crystals c on c.id = sl.crystal_id
-                    where s.sold_at >= cast(:yearStart as timestamp)
-                      and s.sold_at < cast(:nextYear as timestamp)
-                    group by c.sku, c.name
-                ),
-                ranked as (
-                    select
-                        crystal_sku,
-                        crystal_name,
-                        units_sold,
-                        revenue,
-                        profit,
-                        profit / nullif(revenue, 0) as margin,
-                        row_number() over (order by revenue desc, units_sold desc) as rank
-                    from product_sales
-                )
-                select crystal_sku, crystal_name, units_sold, revenue, profit, coalesce(margin, 0)
-                from ranked
-                where rank <= 5
-                order by rank
-                """;
-        return query(session, sql, window).stream()
-                .map(row -> new ProductSalesInsight(
-                        string(row[0]),
-                        string(row[1]),
-                        integer(row[2]),
-                        money(row[3]),
-                        money(row[4]),
-                        decimal(row[5]).setScale(4, RoundingMode.HALF_UP)
-                ))
-                .toList();
-    }
-
-    private List<ProductForecast> forecasts(Session session, ReportWindow window) {
-        String sql = """
-                with report_lines as (
-                    select
-                        c.sku as crystal_sku,
-                        c.name as crystal_name,
-                        extract(month from s.sold_at) as sale_month,
-                        sl.quantity,
-                        sl.quantity * sl.unit_price as revenue
-                    from sales s
-                    join sale_lines sl on sl.sale_id = s.id
-                    join crystals c on c.id = sl.crystal_id
-                    where s.sold_at >= cast(:yearStart as timestamp)
-                      and s.sold_at < cast(:nextYear as timestamp)
-                ),
-                annual as (
-                    select
-                        crystal_sku,
-                        crystal_name,
-                        sum(quantity) as units_sold,
-                        sum(revenue) as revenue,
-                        sum(case when sale_month <= 6 then revenue else 0 end) as first_half_revenue,
-                        sum(case when sale_month > 6 then revenue else 0 end) as second_half_revenue
-                    from report_lines
-                    group by crystal_sku, crystal_name
-                ),
-                scored as (
-                    select
-                        crystal_sku,
-                        crystal_name,
-                        units_sold,
-                        revenue,
-                        greatest(
-                            -0.15,
-                            least(0.35, coalesce((second_half_revenue - first_half_revenue) / nullif(first_half_revenue, 0), 0.08))
-                        ) as growth_rate
-                    from annual
-                )
-                select
-                    crystal_sku,
-                    crystal_name,
-                    round(revenue * (1 + growth_rate), 2) as projected_revenue,
-                    ceil(units_sold * (1 + growth_rate))::int as projected_units,
-                    round(growth_rate, 4) as growth_rate
-                from scored
-                order by projected_revenue desc
-                limit 5
-                """;
-        return query(session, sql, window).stream()
-                .map(row -> new ProductForecast(
-                        string(row[0]),
-                        string(row[1]),
-                        money(row[2]),
-                        integer(row[3]),
-                        decimal(row[4]).setScale(4, RoundingMode.HALF_UP)
-                ))
-                .toList();
+    private List<SaleActivity> saleActivity(MongoDatabase database, Instant start, Instant end) {
+        return database.getCollection("sales")
+                .find(and(
+                        gte("soldAt", Date.from(start)),
+                        lt("soldAt", Date.from(end))
+                ), SaleActivity.class)
+                .projection(include("customerId", "soldAt"))
+                .into(new ArrayList<>());
     }
 
     private List<String> recommendations(
@@ -346,75 +294,191 @@ public class CrystalShopReportingService {
         return recommendations;
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Object[]> query(Session session, String sql, ReportWindow window) {
-        NativeQuery<Object[]> query = session.createNativeQuery(sql, Object[].class);
-        query.setParameter("yearStart", window.yearStart());
-        query.setParameter("nextYear", window.nextYear());
-        return query.getResultList();
+    private MqlNumber margin() {
+        return when(
+                number("revenue").eq(decimal("0")),
+                decimal("0.0000"),
+                number("profit").divide(number("revenue")).round(of(4))
+        );
     }
 
-    private Object[] singleRow(List<Object[]> rows) {
-        if (rows.isEmpty()) {
-            return new Object[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0};
-        }
-        return rows.getFirst();
+    private MqlNumber rawGrowthRate() {
+        return when(
+                number("firstHalfRevenue").eq(decimal("0")),
+                decimal("0.08"),
+                number("secondHalfRevenue").subtract(number("firstHalfRevenue")).divide(number("firstHalfRevenue"))
+        );
     }
 
-    private <T> T inTransaction(Function<Session, T> work) {
-        try (Session session = sessionFactory.openSession()) {
-            Transaction transaction = session.beginTransaction();
-            try {
-                T result = work.apply(session);
-                transaction.commit();
-                return result;
-            } catch (RuntimeException e) {
-                if (transaction.isActive()) {
-                    transaction.rollback();
-                }
-                throw e;
-            }
-        }
+    private MqlNumber growthRate() {
+        return number("rawGrowthRate").min(decimal("0.35")).max(decimal("-0.15"));
     }
 
-    private String string(Object value) {
-        return value == null ? "" : value.toString();
+    private MqlNumber projectedRevenue() {
+        return number("revenue").multiply(number("growthRate").add(decimal("1"))).round(of(2));
     }
 
-    private int integer(Object value) {
-        if (value == null) {
-            return 0;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        return Integer.parseInt(value.toString());
+    private MqlNumber projectedUnits() {
+        return number("unitsSold").multiply(number("growthRate").add(decimal("1")));
     }
 
-    private BigDecimal money(Object value) {
-        return decimal(value).setScale(2, RoundingMode.HALF_UP);
+    private MqlNumber lineRevenue() {
+        return lineNumber("quantity").multiply(lineNumber("unitPrice"));
     }
 
-    private BigDecimal decimal(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        if (value instanceof BigDecimal decimal) {
-            return decimal;
-        }
-        if (value instanceof Number number) {
-            return BigDecimal.valueOf(number.doubleValue());
-        }
-        return new BigDecimal(value.toString());
+    private MqlNumber lineCost() {
+        return lineNumber("quantity").multiply(lineNumber("wholesaleCostAtSale"));
+    }
+
+    private MqlNumber lineProfit() {
+        return lineNumber("quantity")
+                .multiply(lineNumber("unitPrice").subtract(lineNumber("wholesaleCostAtSale")));
+    }
+
+    private MqlNumber when(MqlBoolean condition, MqlNumber thenExpression, MqlNumber elseExpression) {
+        return condition.cond(thenExpression, elseExpression);
+    }
+
+    private MqlNumber arraySize(String fieldName) {
+        return current().<MqlValue>getArray(fieldName).size();
+    }
+
+    private MqlDate date(String fieldName) {
+        return current().getDate(fieldName);
+    }
+
+    private MqlDate date(String documentField, String fieldName) {
+        return current().getDocument(documentField).getDate(fieldName);
+    }
+
+    private MqlNumber number(String fieldName) {
+        return current().getNumber(fieldName);
+    }
+
+    private MqlString string(String documentField, String fieldName) {
+        return current().getDocument(documentField).getString(fieldName);
+    }
+
+    private MqlValue value(String fieldName) {
+        return current().getField(fieldName);
+    }
+
+    private MqlNumber lineNumber(String fieldName) {
+        return current().getDocument("lines").getNumber(fieldName);
+    }
+
+    private MqlString lineString(String fieldName) {
+        return current().getDocument("lines").getString(fieldName);
+    }
+
+    private MqlNumber decimal(String value) {
+        return of(Decimal128.parse(value));
+    }
+
+    private Bson dateTrunc(MqlDate date, String unit) {
+        return operator("$dateTrunc", new DateTruncExpression(date, unit));
+    }
+
+    private Bson ceilToInt(MqlNumber expression) {
+        return operator("$toInt", operator("$ceil", expression));
+    }
+
+    private Bson operator(String operator, Object expression) {
+        return new OperatorExpression(operator, expression);
+    }
+
+    private String databaseName(ConnectionString connectionString) {
+        String database = connectionString.getDatabase();
+        return database == null || database.isBlank() ? "test" : database;
     }
 
     private record ReportWindow(int year) {
-        String yearStart() {
-            return year + "-01-01";
+        Instant start() {
+            return LocalDate.of(year, 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
         }
 
-        String nextYear() {
-            return (year + 1) + "-01-01";
+        Instant retentionStart() {
+            return LocalDate.of(year - 1, 12, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        }
+
+        Instant nextYear() {
+            return LocalDate.of(year + 1, 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        }
+    }
+
+    public record SaleActivity(ObjectId customerId, Instant soldAt) {
+        LocalDate soldDate() {
+            return soldAt.atZone(ZoneOffset.UTC).toLocalDate();
+        }
+    }
+
+    private record WeeklyProductGroupKey(Bson weekStart, MqlString crystalSku, MqlString crystalName) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("weekStart", weekStart),
+                    new Field<>("crystalSku", crystalSku),
+                    new Field<>("crystalName", crystalName)
+            );
+        }
+    }
+
+    private record ProductGroupKey(MqlString crystalSku, MqlString crystalName) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("crystalSku", crystalSku),
+                    new Field<>("crystalName", crystalName)
+            );
+        }
+    }
+
+    private record DateTruncExpression(MqlDate date, String unit) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry,
+                    new Field<>("date", date),
+                    new Field<>("unit", unit),
+                    new Field<>("startOfWeek", "Monday"),
+                    new Field<>("timezone", "UTC")
+            );
+        }
+    }
+
+    private record OperatorExpression(String operator, Object expression) implements Bson {
+        @Override
+        public <TDocument> BsonDocument toBsonDocument(Class<TDocument> documentClass, CodecRegistry codecRegistry) {
+            return bsonDocument(codecRegistry, new Field<>(operator, expression));
+        }
+    }
+
+    private static BsonDocument bsonDocument(CodecRegistry codecRegistry, Field<?>... fields) {
+        BsonDocumentWriter writer = new BsonDocumentWriter(new BsonDocument());
+        writer.writeStartDocument();
+        for (Field<?> field : fields) {
+            writer.writeName(field.getName());
+            encodeValue(writer, field.getValue(), codecRegistry);
+        }
+        writer.writeEndDocument();
+        return writer.getDocument();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void encodeValue(BsonDocumentWriter writer, Object value, CodecRegistry codecRegistry) {
+        if (value == null) {
+            writer.writeNull();
+        } else if (value instanceof Bson bson) {
+            codecRegistry.get(BsonDocument.class).encode(
+                    writer,
+                    bson.toBsonDocument(BsonDocument.class, codecRegistry),
+                    EncoderContext.builder().build()
+            );
+        } else {
+            ((Encoder) codecRegistry.get(value.getClass())).encode(
+                    writer,
+                    value,
+                    EncoderContext.builder().build()
+            );
         }
     }
 }

@@ -1,18 +1,18 @@
 package com.luketn.crystalshop.domain.database;
 
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.bson.types.ObjectId;
 
 @Entity
 @Table(name = "customers")
 public class Customer {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @ObjectIdGenerator
+    private ObjectId id;
 
     @Column(nullable = false)
     private String name;
@@ -32,7 +32,7 @@ public class Customer {
         this.loyaltyTier = loyaltyTier;
     }
 
-    public Long getId() {
+    public ObjectId getId() {
         return id;
     }
 

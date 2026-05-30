@@ -5,8 +5,8 @@ import com.luketn.crystalshop.domain.database.SaleLine;
 import java.math.BigDecimal;
 
 public record SaleLineView(
-        Long id,
-        Long crystalId,
+        String id,
+        String crystalId,
         String crystalSku,
         String crystalName,
         int quantity,
@@ -15,10 +15,10 @@ public record SaleLineView(
 ) {
     public static SaleLineView from(SaleLine line) {
         return new SaleLineView(
-                line.getId(),
-                line.getCrystal().getId(),
-                line.getCrystal().getSku(),
-                line.getCrystal().getName(),
+                ApiIds.toString(line.getId()),
+                ApiIds.toString(line.getCrystalId()),
+                line.getCrystalSku(),
+                line.getCrystalName(),
                 line.getQuantity(),
                 line.getUnitPrice(),
                 line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()))

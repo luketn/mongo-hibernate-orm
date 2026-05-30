@@ -1,11 +1,11 @@
 package com.luketn.crystalshop.domain.database;
 
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.bson.types.ObjectId;
 
 import java.math.BigDecimal;
 
@@ -13,8 +13,8 @@ import java.math.BigDecimal;
 @Table(name = "crystals")
 public class Crystal {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @ObjectIdGenerator
+    private ObjectId id;
 
     @Column(nullable = false, unique = true, length = 32)
     private String sku;
@@ -58,7 +58,7 @@ public class Crystal {
         this.wholesaleCost = wholesaleCost;
     }
 
-    public Long getId() {
+    public ObjectId getId() {
         return id;
     }
 

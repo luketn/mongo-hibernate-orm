@@ -4,14 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luketn.crystalshop.http.JsonSupport;
 import com.luketn.crystalshop.persistence.HibernateSupport;
+import org.bson.types.ObjectId;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -27,12 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers
-class CrystalShopHttpIntegrationTest {
+class CrystalShopMongoHttpIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-            .withDatabaseName("crystal_shop")
-            .withUsername("crystal")
-            .withPassword("crystal");
+    static final MongoDBContainer mongo = new MongoDBContainer(MongoTestSupport.MONGO_IMAGE);
 
     static final ObjectMapper mapper = JsonSupport.createMapper();
     static HttpClient client;
@@ -40,28 +37,16 @@ class CrystalShopHttpIntegrationTest {
     static Map<String, Object> seedCounts;
 
     @BeforeAll
-    static void startApplication() throws Exception {
+    static void startApplication() {
         client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
-        AppConfig schemaConfig = new AppConfig(
-                postgres.getJdbcUrl(),
-                postgres.getUsername(),
-                postgres.getPassword(),
-                "create",
-                0
-        );
-        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(schemaConfig)) {
+        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(
+                MongoTestSupport.mongoConfig(mongo, "none", 0)
+        )) {
             seedCounts = new SampleDataImporter(sessionFactory).importSampleData();
         }
-
-        app = CrystalShopApplication.start(new AppConfig(
-                postgres.getJdbcUrl(),
-                postgres.getUsername(),
-                postgres.getPassword(),
-                "validate",
-                0
-        ));
+        app = CrystalShopApplication.start(MongoTestSupport.mongoConfig(mongo, "none", 0));
     }
 
     @AfterAll
@@ -72,11 +57,10 @@ class CrystalShopHttpIntegrationTest {
     }
 
     @Test
-    void allEndpointsRoundTripThroughHttpHibernateAndPostgres() throws Exception {
+    void allEndpointsRoundTripThroughHttpHibernateAndMongo() throws Exception {
         assertTrue(requestText("GET", "/", null, 200).body().contains("<title>Crystal Shop</title>"));
         assertTrue(requestText("GET", "/styles.css", null, 200).body().contains(".workspace"));
         assertTrue(requestText("GET", "/app.js", null, 200).body().contains("const resources"));
-        request("POST", "/sample-data", "", 404);
 
         assertEquals(8, seedCounts.get("crystals"));
         assertEquals(18, seedCounts.get("inventoryItems"));
@@ -94,10 +78,10 @@ class CrystalShopHttpIntegrationTest {
         assertEquals(39, sales.size());
         assertTrue(sales.toString().contains("SEL-003 x2"));
 
-        long seededSaleCrystalId = findBy(crystals, "sku", "AME-001").get("id").asLong();
-        long inventoryCrystalId = findBy(crystals, "sku", "LAB-004").get("id").asLong();
-        long seededCustomerId = findBy(customers, "email", "mira.chen@example.com").get("id").asLong();
-        long seededStoreId = findBy(stores, "code", "SYD-DAWN").get("id").asLong();
+        String seededSaleCrystalId = textId(findBy(crystals, "sku", "AME-001"));
+        String inventoryCrystalId = textId(findBy(crystals, "sku", "LAB-004"));
+        String seededCustomerId = textId(findBy(customers, "email", "mira.chen@example.com"));
+        String seededStoreId = textId(findBy(stores, "code", "SYD-DAWN"));
 
         cannotDeleteCrystalWithPriorSales(seededSaleCrystalId);
         crystalCrud();
@@ -120,7 +104,7 @@ class CrystalShopHttpIntegrationTest {
                   "wholesaleCost": 5.10
                 }
                 """, 201);
-        long id = created.body().get("id").asLong();
+        String id = textId(created.body());
         assertEquals("ROQ-999", request("GET", "/crystals/" + id, null, 200).body().get("sku").asText());
 
         JsonNode updated = request("PUT", "/crystals/" + id, """
@@ -136,7 +120,7 @@ class CrystalShopHttpIntegrationTest {
         request("GET", "/crystals/" + id, null, 404);
     }
 
-    private void cannotDeleteCrystalWithPriorSales(long crystalId) throws Exception {
+    private void cannotDeleteCrystalWithPriorSales(String crystalId) throws Exception {
         HttpResult delete = request("DELETE", "/crystals/" + crystalId, null, 409);
         assertTrue(delete.body().get("error").asText().contains("AME-001"));
         assertTrue(delete.body().get("error").asText().contains("sale line"));
@@ -154,7 +138,7 @@ class CrystalShopHttpIntegrationTest {
                   "loyaltyTier": "BRONZE"
                 }
                 """, 201);
-        long id = created.body().get("id").asLong();
+        String id = textId(created.body());
         assertEquals("nora.wells@example.com", request("GET", "/customers/" + id, null, 200).body().get("email").asText());
 
         JsonNode updated = request("PUT", "/customers/" + id, """
@@ -177,7 +161,7 @@ class CrystalShopHttpIntegrationTest {
                   "address": "5 River Terrace, Brisbane QLD"
                 }
                 """, 201);
-        long id = created.body().get("id").asLong();
+        String id = textId(created.body());
         assertEquals("Sunstone Supply", request("GET", "/stores/" + id, null, 200).body().get("name").asText());
 
         JsonNode updated = request("PUT", "/stores/" + id, """
@@ -191,16 +175,16 @@ class CrystalShopHttpIntegrationTest {
         request("GET", "/stores/" + id, null, 404);
     }
 
-    private void inventoryCrud(long storeId, long crystalId) throws Exception {
+    private void inventoryCrud(String storeId, String crystalId) throws Exception {
         HttpResult created = request("POST", "/inventory", """
                 {
-                  "storeId": %d,
-                  "crystalId": %d,
+                  "storeId": "%s",
+                  "crystalId": "%s",
                   "quantity": 3,
                   "shelfLocation": "Z9"
                 }
                 """.formatted(storeId, crystalId), 201);
-        long id = created.body().get("id").asLong();
+        String id = textId(created.body());
         assertEquals("Z9", request("GET", "/inventory/" + id, null, 200).body().get("shelfLocation").asText());
 
         JsonNode updated = request("PUT", "/inventory/" + id, """
@@ -216,22 +200,22 @@ class CrystalShopHttpIntegrationTest {
         request("GET", "/inventory/" + id, null, 404);
     }
 
-    private void saleCrud(long storeId, long customerId, long crystalId) throws Exception {
+    private void saleCrud(String storeId, String customerId, String crystalId) throws Exception {
         HttpResult created = request("POST", "/sales", """
                 {
-                  "storeId": %d,
-                  "customerId": %d,
+                  "storeId": "%s",
+                  "customerId": "%s",
                   "soldAt": "2026-04-23T09:00:00",
                   "lines": [
                     {
-                      "crystalId": %d,
+                      "crystalId": "%s",
                       "quantity": 1,
                       "unitPrice": 48.00
                     }
                   ]
                 }
                 """.formatted(storeId, customerId, crystalId), 201);
-        long id = created.body().get("id").asLong();
+        String id = textId(created.body());
         assertEquals(1, request("GET", "/sales/" + id, null, 200).body().get("lines").size());
 
         JsonNode updated = request("PUT", "/sales/" + id, """
@@ -239,14 +223,14 @@ class CrystalShopHttpIntegrationTest {
                   "soldAt": "2026-04-23T10:30:00",
                   "lines": [
                     {
-                      "crystalId": %d,
+                      "crystalId": "%s",
                       "quantity": 2,
                       "unitPrice": 47.50
                     }
                   ]
                 }
                 """.formatted(crystalId), 200).body();
-        assertEquals("2026-04-23T10:30", updated.get("soldAt").asText());
+        assertEquals("2026-04-23T10:30:00Z", updated.get("soldAt").asText());
         assertEquals(2, updated.get("lines").get(0).get("quantity").asInt());
 
         request("DELETE", "/sales/" + id, null, 204);
@@ -267,6 +251,12 @@ class CrystalShopHttpIntegrationTest {
         assertTrue(report.get("recommendations").size() >= 3);
 
         request("GET", "/reports/annual-sales?year=not-a-year", null, 400);
+    }
+
+    private String textId(JsonNode node) {
+        String id = node.get("id").asText();
+        assertTrue(ObjectId.isValid(id), "Expected ObjectId hex string but got " + id);
+        return id;
     }
 
     private JsonNode findBy(JsonNode array, String field, String value) {

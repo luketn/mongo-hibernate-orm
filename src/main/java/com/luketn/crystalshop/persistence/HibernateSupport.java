@@ -5,7 +5,6 @@ import com.luketn.crystalshop.domain.database.Crystal;
 import com.luketn.crystalshop.domain.database.Customer;
 import com.luketn.crystalshop.domain.database.InventoryItem;
 import com.luketn.crystalshop.domain.database.Sale;
-import com.luketn.crystalshop.domain.database.SaleLine;
 import com.luketn.crystalshop.domain.database.Store;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
@@ -20,13 +19,22 @@ public final class HibernateSupport {
     }
 
     public static SessionFactory createSessionFactory(AppConfig config) {
+        return createSessionFactory(
+                config,
+                Crystal.class,
+                Customer.class,
+                Store.class,
+                InventoryItem.class,
+                Sale.class
+        );
+    }
+
+    public static SessionFactory createSessionFactory(AppConfig config, Class<?>... annotatedClasses) {
         Map<String, Object> settings = new HashMap<>();
-        settings.put("jakarta.persistence.jdbc.driver", "org.postgresql.Driver");
-        settings.put("jakarta.persistence.jdbc.url", config.jdbcUrl());
-        settings.put("jakarta.persistence.jdbc.user", config.username());
-        settings.put("jakarta.persistence.jdbc.password", config.password());
-        settings.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
-        settings.put("hibernate.hbm2ddl.auto", config.hbm2ddlAuto());
+        settings.put("hibernate.dialect", "com.mongodb.hibernate.dialect.MongoDialect");
+        settings.put("hibernate.connection.provider_class", "com.mongodb.hibernate.jdbc.MongoConnectionProvider");
+        settings.put("jakarta.persistence.jdbc.url", config.databaseUrl());
+        settings.put("hibernate.hbm2ddl.auto", config.schemaAction());
         settings.put("hibernate.show_sql", "false");
         settings.put("hibernate.format_sql", "false");
         settings.put("hibernate.highlight_sql", "false");
@@ -35,15 +43,11 @@ public final class HibernateSupport {
                 .applySettings(settings)
                 .build();
         try {
-            return new MetadataSources(registry)
-                    .addAnnotatedClass(Crystal.class)
-                    .addAnnotatedClass(Customer.class)
-                    .addAnnotatedClass(Store.class)
-                    .addAnnotatedClass(InventoryItem.class)
-                    .addAnnotatedClass(Sale.class)
-                    .addAnnotatedClass(SaleLine.class)
-                    .buildMetadata()
-                    .buildSessionFactory();
+            MetadataSources sources = new MetadataSources(registry);
+            for (Class<?> annotatedClass : annotatedClasses) {
+                sources.addAnnotatedClass(annotatedClass);
+            }
+            return sources.buildMetadata().buildSessionFactory();
         } catch (RuntimeException e) {
             StandardServiceRegistryBuilder.destroy(registry);
             throw e;

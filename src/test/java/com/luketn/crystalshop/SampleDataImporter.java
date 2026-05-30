@@ -52,6 +52,7 @@ final class SampleDataImporter {
             session.persist(crystal);
             crystals.put(crystal.getSku(), crystal);
         }
+        session.flush();
 
         Map<String, Customer> customers = new HashMap<>();
         for (CustomerSeed seed : data.customers()) {
@@ -59,6 +60,7 @@ final class SampleDataImporter {
             session.persist(customer);
             customers.put(customer.getEmail(), customer);
         }
+        session.flush();
 
         int inventoryCount = 0;
         int saleCount = 0;
@@ -66,6 +68,7 @@ final class SampleDataImporter {
         for (StoreSeed seed : data.stores()) {
             Store store = new Store(seed.code(), seed.name(), seed.city(), seed.address());
             session.persist(store);
+            session.flush();
 
             for (InventorySeed inventorySeed : seed.inventory()) {
                 Crystal crystal = requireSeedCrystal(crystals, inventorySeed.crystalSku());
@@ -108,7 +111,6 @@ final class SampleDataImporter {
     }
 
     private void clearDatabase(Session session) {
-        session.createMutationQuery("delete from SaleLine").executeUpdate();
         session.createMutationQuery("delete from Sale").executeUpdate();
         session.createMutationQuery("delete from InventoryItem").executeUpdate();
         session.createMutationQuery("delete from Store").executeUpdate();

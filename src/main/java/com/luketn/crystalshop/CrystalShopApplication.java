@@ -2,6 +2,7 @@ package com.luketn.crystalshop;
 
 import com.luketn.crystalshop.http.CrystalShopServer;
 import com.luketn.crystalshop.persistence.HibernateSupport;
+import com.luketn.crystalshop.persistence.MongoIndexBootstrap;
 import com.luketn.crystalshop.service.CrystalShopService;
 import com.luketn.crystalshop.service.CrystalShopReportingService;
 import org.hibernate.SessionFactory;
@@ -19,8 +20,9 @@ public final class CrystalShopApplication implements AutoCloseable {
 
     public static CrystalShopApplication start(AppConfig config) {
         SessionFactory sessionFactory = HibernateSupport.createSessionFactory(config);
+        MongoIndexBootstrap.createIndexes(config.databaseUrl());
         CrystalShopService service = new CrystalShopService(sessionFactory);
-        CrystalShopReportingService reportingService = new CrystalShopReportingService(sessionFactory);
+        CrystalShopReportingService reportingService = new CrystalShopReportingService(config.databaseUrl());
         CrystalShopServer server = CrystalShopServer.start(config.port(), service, reportingService);
         return new CrystalShopApplication(sessionFactory, server);
     }

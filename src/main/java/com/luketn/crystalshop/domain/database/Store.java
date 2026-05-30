@@ -1,18 +1,18 @@
 package com.luketn.crystalshop.domain.database;
 
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.bson.types.ObjectId;
 
 @Entity
 @Table(name = "stores")
 public class Store {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @ObjectIdGenerator
+    private ObjectId id;
 
     @Column(nullable = false, unique = true, length = 32)
     private String code;
@@ -36,7 +36,7 @@ public class Store {
         this.address = address;
     }
 
-    public Long getId() {
+    public ObjectId getId() {
         return id;
     }
 

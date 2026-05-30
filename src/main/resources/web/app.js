@@ -394,8 +394,8 @@ function formPayload(config) {
   const form = new FormData(editorForm);
   if (state.current === "sales") {
     return {
-      storeId: numberValue(form, "storeId"),
-      customerId: numberValue(form, "customerId"),
+      storeId: stringIdValue(form, "storeId"),
+      customerId: stringIdValue(form, "customerId"),
       soldAt: textValue(form, "soldAt"),
       lines: saleLinePayload(form)
     };
@@ -405,8 +405,10 @@ function formPayload(config) {
   config.fields.forEach(field => {
     if (field.type === "number") {
       payload[field.key] = decimalValue(form, field.key);
-    } else if (field.type === "integer" || field.type === "select") {
+    } else if (field.type === "integer") {
       payload[field.key] = numberValue(form, field.key);
+    } else if (field.type === "select") {
+      payload[field.key] = stringIdValue(form, field.key);
     } else {
       payload[field.key] = textValue(form, field.key);
     }
@@ -502,7 +504,7 @@ function saleLinePayload(form) {
     throw new Error("At least one sale line is required.");
   }
   return crystalIds.map((_, index) => ({
-    crystalId: requiredNumber(crystalIds[index], `Line ${index + 1} Crystal`),
+    crystalId: requiredStringId(crystalIds[index], `Line ${index + 1} Crystal`),
     quantity: requiredNumber(quantities[index], `Line ${index + 1} Quantity`),
     unitPrice: requiredDecimal(unitPrices[index], `Line ${index + 1} Unit Price`)
   }));
@@ -791,8 +793,20 @@ function numberValue(form, key) {
   return requiredNumber(textValue(form, key), labelize(key));
 }
 
+function stringIdValue(form, key) {
+  return requiredStringId(textValue(form, key), labelize(key));
+}
+
 function decimalValue(form, key) {
   return requiredDecimal(textValue(form, key), labelize(key));
+}
+
+function requiredStringId(value, label) {
+  const id = String(value || "").trim();
+  if (!id) {
+    throw new Error(`${label} is required.`);
+  }
+  return id;
 }
 
 function requiredNumber(value, label) {

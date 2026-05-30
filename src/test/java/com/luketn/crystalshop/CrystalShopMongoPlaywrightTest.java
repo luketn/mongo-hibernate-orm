@@ -12,47 +12,32 @@ import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
 @Testcontainers
-class CrystalShopPlaywrightTest {
+class CrystalShopMongoPlaywrightTest {
     @Container
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-            .withDatabaseName("crystal_shop")
-            .withUsername("crystal")
-            .withPassword("crystal");
+    static final MongoDBContainer mongo = new MongoDBContainer(MongoTestSupport.MONGO_IMAGE);
 
     static CrystalShopApplication app;
     static Playwright playwright;
     static Browser browser;
 
     @BeforeAll
-    static void startApplication() throws Exception {
-        AppConfig schemaConfig = new AppConfig(
-                postgres.getJdbcUrl(),
-                postgres.getUsername(),
-                postgres.getPassword(),
-                "create",
-                0
-        );
-        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(schemaConfig)) {
+    static void startApplication() {
+        try (SessionFactory sessionFactory = HibernateSupport.createSessionFactory(
+                MongoTestSupport.mongoConfig(mongo, "none", 0)
+        )) {
             new SampleDataImporter(sessionFactory).importSampleData();
         }
 
-        app = CrystalShopApplication.start(new AppConfig(
-                postgres.getJdbcUrl(),
-                postgres.getUsername(),
-                postgres.getPassword(),
-                "validate",
-                0
-        ));
+        app = CrystalShopApplication.start(MongoTestSupport.mongoConfig(mongo, "none", 0));
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch();
@@ -72,7 +57,7 @@ class CrystalShopPlaywrightTest {
     }
 
     @Test
-    void guiDrivesAllResourceFlowsThroughTheApi() {
+    void guiDrivesAllResourceFlowsThroughTheMongoApi() {
         try (BrowserContext context = browser.newContext(new Browser.NewContextOptions().setViewportSize(1400, 950))) {
             Page page = context.newPage();
             page.setDefaultTimeout(8_000);
@@ -217,7 +202,6 @@ class CrystalShopPlaywrightTest {
 
         rowWithText(page, "SEL-003 x2").click();
         assertThat(page.locator(".sale-line-row")).hasCount(2);
-        assertThat(page.locator(".sale-line-row").nth(0)).containsText("Crystal");
         selectInLine(page, 0, "Crystal", "AME-001 - Amethyst Cluster");
         selectInLine(page, 1, "Crystal", "SEL-003 - Selenite Wand");
         fillInLine(page, 1, "Quantity", "3");

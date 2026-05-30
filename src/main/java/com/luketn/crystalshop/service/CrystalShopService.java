@@ -21,13 +21,16 @@ import com.luketn.crystalshop.http.ApiException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
+import org.bson.types.ObjectId;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class CrystalShopService {
     private final SessionFactory sessionFactory;
@@ -44,7 +47,7 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public CrystalView getCrystal(long id) {
+    public CrystalView getCrystal(String id) {
         return inTransaction(session -> CrystalView.from(require(session, Crystal.class, id)));
     }
 
@@ -65,7 +68,7 @@ public class CrystalShopService {
         });
     }
 
-    public CrystalView updateCrystal(long id, CrystalRequest request) {
+    public CrystalView updateCrystal(String id, CrystalRequest request) {
         return inTransaction(session -> {
             Crystal crystal = require(session, Crystal.class, id);
             if (request.sku() != null) {
@@ -94,21 +97,21 @@ public class CrystalShopService {
         });
     }
 
-    public void deleteCrystal(long id) {
+    public void deleteCrystal(String id) {
         inTransaction(session -> {
             Crystal crystal = require(session, Crystal.class, id);
-            long saleLineCount = session.createQuery(
-                            "select count(line) from SaleLine line where line.crystal.id = :crystalId",
-                            Long.class
-                    )
-                    .setParameter("crystalId", id)
-                    .getSingleResult();
-            long inventoryCount = session.createQuery(
-                            "select count(item) from InventoryItem item where item.crystal.id = :crystalId",
-                            Long.class
-                    )
-                    .setParameter("crystalId", id)
-                    .getSingleResult();
+            ObjectId crystalId = crystal.getId();
+            long saleLineCount = session.createQuery("from Sale s", Sale.class)
+                    .getResultList()
+                    .stream()
+                    .flatMap(sale -> sale.getLines().stream())
+                    .filter(line -> crystalId.equals(line.getCrystalId()))
+                    .count();
+            long inventoryCount = session.createQuery("from InventoryItem item", InventoryItem.class)
+                    .getResultList()
+                    .stream()
+                    .filter(item -> crystalId.equals(item.getCrystalId()))
+                    .count();
             if (saleLineCount > 0 || inventoryCount > 0) {
                 List<String> blockers = new ArrayList<>();
                 if (saleLineCount > 0) {
@@ -136,7 +139,7 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public CustomerView getCustomer(long id) {
+    public CustomerView getCustomer(String id) {
         return inTransaction(session -> CustomerView.from(require(session, Customer.class, id)));
     }
 
@@ -153,7 +156,7 @@ public class CrystalShopService {
         });
     }
 
-    public CustomerView updateCustomer(long id, CustomerRequest request) {
+    public CustomerView updateCustomer(String id, CustomerRequest request) {
         return inTransaction(session -> {
             Customer customer = require(session, Customer.class, id);
             if (request.name() != null) {
@@ -170,7 +173,7 @@ public class CrystalShopService {
         });
     }
 
-    public void deleteCustomer(long id) {
+    public void deleteCustomer(String id) {
         inTransaction(session -> {
             session.remove(require(session, Customer.class, id));
             return null;
@@ -185,7 +188,7 @@ public class CrystalShopService {
                 .toList());
     }
 
-    public StoreView getStore(long id) {
+    public StoreView getStore(String id) {
         return inTransaction(session -> StoreView.from(require(session, Store.class, id)));
     }
 
@@ -203,7 +206,7 @@ public class CrystalShopService {
         });
     }
 
-    public StoreView updateStore(long id, StoreRequest request) {
+    public StoreView updateStore(String id, StoreRequest request) {
         return inTransaction(session -> {
             Store store = require(session, Store.class, id);
             if (request.code() != null) {
@@ -223,7 +226,7 @@ public class CrystalShopService {
         });
     }
 
-    public void deleteStore(long id) {
+    public void deleteStore(String id) {
         inTransaction(session -> {
             session.remove(require(session, Store.class, id));
             return null;
@@ -231,21 +234,36 @@ public class CrystalShopService {
     }
 
     public List<InventoryItemView> listInventory() {
-        return inTransaction(session -> session.createQuery("from InventoryItem i order by i.id", InventoryItem.class)
-                .getResultList()
-                .stream()
-                .map(InventoryItemView::from)
-                .toList());
+        return inTransaction(session -> {
+            Map<ObjectId, StoreView> stores = storeViewsById(session);
+            Map<ObjectId, CrystalView> crystals = crystalViewsById(session);
+            return session.createQuery("from InventoryItem i order by i.id", InventoryItem.class)
+                    .getResultList()
+                    .stream()
+                    .map(item -> InventoryItemView.from(
+                            item,
+                            requireRelated(stores, item.getStoreId(), "Store"),
+                            requireRelated(crystals, item.getCrystalId(), "Crystal")
+                    ))
+                    .toList();
+        });
     }
 
-    public InventoryItemView getInventory(long id) {
-        return inTransaction(session -> InventoryItemView.from(require(session, InventoryItem.class, id)));
+    public InventoryItemView getInventory(String id) {
+        return inTransaction(session -> {
+            InventoryItem item = require(session, InventoryItem.class, id);
+            return InventoryItemView.from(
+                    item,
+                    StoreView.from(require(session, Store.class, item.getStoreId())),
+                    CrystalView.from(require(session, Crystal.class, item.getCrystalId()))
+            );
+        });
     }
 
     public InventoryItemView createInventory(InventoryItemRequest request) {
         return inTransaction(session -> {
-            Store store = require(session, Store.class, requiredLong(request.storeId(), "storeId"));
-            Crystal crystal = require(session, Crystal.class, requiredLong(request.crystalId(), "crystalId"));
+            Store store = require(session, Store.class, request.storeId());
+            Crystal crystal = require(session, Crystal.class, request.crystalId());
             InventoryItem item = new InventoryItem(
                     store,
                     crystal,
@@ -254,18 +272,18 @@ public class CrystalShopService {
             );
             session.persist(item);
             session.flush();
-            return InventoryItemView.from(item);
+            return InventoryItemView.from(item, StoreView.from(store), CrystalView.from(crystal));
         });
     }
 
-    public InventoryItemView updateInventory(long id, InventoryItemRequest request) {
+    public InventoryItemView updateInventory(String id, InventoryItemRequest request) {
         return inTransaction(session -> {
             InventoryItem item = require(session, InventoryItem.class, id);
             if (request.storeId() != null) {
-                item.setStore(require(session, Store.class, requiredLong(request.storeId(), "storeId")));
+                item.setStore(require(session, Store.class, request.storeId()));
             }
             if (request.crystalId() != null) {
-                item.setCrystal(require(session, Crystal.class, requiredLong(request.crystalId(), "crystalId")));
+                item.setCrystal(require(session, Crystal.class, request.crystalId()));
             }
             if (request.quantity() != null) {
                 item.setQuantity(requiredInt(request.quantity(), "quantity", 0));
@@ -274,11 +292,15 @@ public class CrystalShopService {
                 item.setShelfLocation(requiredText(request.shelfLocation(), "shelfLocation"));
             }
             session.flush();
-            return InventoryItemView.from(item);
+            return InventoryItemView.from(
+                    item,
+                    StoreView.from(require(session, Store.class, item.getStoreId())),
+                    CrystalView.from(require(session, Crystal.class, item.getCrystalId()))
+            );
         });
     }
 
-    public void deleteInventory(long id) {
+    public void deleteInventory(String id) {
         inTransaction(session -> {
             session.remove(require(session, InventoryItem.class, id));
             return null;
@@ -286,37 +308,52 @@ public class CrystalShopService {
     }
 
     public List<SaleView> listSales() {
-        return inTransaction(session -> session.createQuery("from Sale s order by s.id", Sale.class)
-                .getResultList()
-                .stream()
-                .map(SaleView::from)
-                .toList());
+        return inTransaction(session -> {
+            Map<ObjectId, StoreView> stores = storeViewsById(session);
+            Map<ObjectId, CustomerView> customers = customerViewsById(session);
+            return session.createQuery("from Sale s order by s.id", Sale.class)
+                    .getResultList()
+                    .stream()
+                    .map(sale -> SaleView.from(
+                            sale,
+                            requireRelated(stores, sale.getStoreId(), "Store"),
+                            requireRelated(customers, sale.getCustomerId(), "Customer")
+                    ))
+                    .toList();
+        });
     }
 
-    public SaleView getSale(long id) {
-        return inTransaction(session -> SaleView.from(require(session, Sale.class, id)));
+    public SaleView getSale(String id) {
+        return inTransaction(session -> {
+            Sale sale = require(session, Sale.class, id);
+            return SaleView.from(
+                    sale,
+                    StoreView.from(require(session, Store.class, sale.getStoreId())),
+                    CustomerView.from(require(session, Customer.class, sale.getCustomerId()))
+            );
+        });
     }
 
     public SaleView createSale(SaleRequest request) {
         return inTransaction(session -> {
-            Store store = require(session, Store.class, requiredLong(request.storeId(), "storeId"));
-            Customer customer = require(session, Customer.class, requiredLong(request.customerId(), "customerId"));
+            Store store = require(session, Store.class, request.storeId());
+            Customer customer = require(session, Customer.class, request.customerId());
             Sale sale = new Sale(store, customer, requiredDateTime(request.soldAt(), "soldAt"));
             replaceSaleLines(session, sale, request.lines());
             session.persist(sale);
             session.flush();
-            return SaleView.from(sale);
+            return SaleView.from(sale, StoreView.from(store), CustomerView.from(customer));
         });
     }
 
-    public SaleView updateSale(long id, SaleRequest request) {
+    public SaleView updateSale(String id, SaleRequest request) {
         return inTransaction(session -> {
             Sale sale = require(session, Sale.class, id);
             if (request.storeId() != null) {
-                sale.setStore(require(session, Store.class, requiredLong(request.storeId(), "storeId")));
+                sale.setStore(require(session, Store.class, request.storeId()));
             }
             if (request.customerId() != null) {
-                sale.setCustomer(require(session, Customer.class, requiredLong(request.customerId(), "customerId")));
+                sale.setCustomer(require(session, Customer.class, request.customerId()));
             }
             if (request.soldAt() != null) {
                 sale.setSoldAt(requiredDateTime(request.soldAt(), "soldAt"));
@@ -325,11 +362,15 @@ public class CrystalShopService {
                 replaceSaleLines(session, sale, request.lines());
             }
             session.flush();
-            return SaleView.from(sale);
+            return SaleView.from(
+                    sale,
+                    StoreView.from(require(session, Store.class, sale.getStoreId())),
+                    CustomerView.from(require(session, Customer.class, sale.getCustomerId()))
+            );
         });
     }
 
-    public void deleteSale(long id) {
+    public void deleteSale(String id) {
         inTransaction(session -> {
             session.remove(require(session, Sale.class, id));
             return null;
@@ -345,7 +386,7 @@ public class CrystalShopService {
             if (line == null) {
                 throw new ApiException(400, "lines entries must be objects");
             }
-            Crystal crystal = require(session, Crystal.class, requiredLong(line.crystalId(), "crystalId"));
+            Crystal crystal = require(session, Crystal.class, line.crystalId());
             sale.addLine(new SaleLine(
                     crystal,
                     requiredInt(line.quantity(), "quantity", 1),
@@ -370,12 +411,45 @@ public class CrystalShopService {
         }
     }
 
-    private <T> T require(Session session, Class<T> type, long id) {
+    private <T> T require(Session session, Class<T> type, String id) {
+        return require(session, type, requiredObjectId(id, "id"));
+    }
+
+    private <T> T require(Session session, Class<T> type, ObjectId id) {
         T entity = session.find(type, id);
         if (entity == null) {
             throw new ApiException(404, type.getSimpleName() + " " + id + " was not found");
         }
         return entity;
+    }
+
+    private Map<ObjectId, CrystalView> crystalViewsById(Session session) {
+        return session.createQuery("from Crystal c", Crystal.class)
+                .getResultList()
+                .stream()
+                .collect(Collectors.toMap(Crystal::getId, CrystalView::from));
+    }
+
+    private Map<ObjectId, CustomerView> customerViewsById(Session session) {
+        return session.createQuery("from Customer c", Customer.class)
+                .getResultList()
+                .stream()
+                .collect(Collectors.toMap(Customer::getId, CustomerView::from));
+    }
+
+    private Map<ObjectId, StoreView> storeViewsById(Session session) {
+        return session.createQuery("from Store s", Store.class)
+                .getResultList()
+                .stream()
+                .collect(Collectors.toMap(Store::getId, StoreView::from));
+    }
+
+    private <T> T requireRelated(Map<ObjectId, T> values, ObjectId id, String type) {
+        T value = values.get(id);
+        if (value == null) {
+            throw new ApiException(500, type + " " + id + " referenced by a document was not found");
+        }
+        return value;
     }
 
     private String requiredText(String value, String field) {
@@ -405,11 +479,14 @@ public class CrystalShopService {
         return value;
     }
 
-    private long requiredLong(Long value, String field) {
-        if (value == null) {
+    private ObjectId requiredObjectId(String value, String field) {
+        if (value == null || value.isBlank()) {
             throw new ApiException(400, field + " is required");
         }
-        return value;
+        if (!ObjectId.isValid(value)) {
+            throw new ApiException(400, field + " must be a valid ObjectId string");
+        }
+        return new ObjectId(value);
     }
 
     private LocalDateTime requiredDateTime(String value, String field) {
