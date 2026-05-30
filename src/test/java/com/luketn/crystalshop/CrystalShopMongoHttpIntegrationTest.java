@@ -89,6 +89,7 @@ class CrystalShopMongoHttpIntegrationTest {
         storeCrud();
         inventoryCrud(seededStoreId, inventoryCrystalId);
         saleCrud(seededStoreId, seededCustomerId, seededSaleCrystalId);
+        annualSalesReport();
     }
 
     private void crystalCrud() throws Exception {
@@ -234,6 +235,22 @@ class CrystalShopMongoHttpIntegrationTest {
 
         request("DELETE", "/sales/" + id, null, 204);
         request("GET", "/sales/" + id, null, 404);
+    }
+
+    private void annualSalesReport() throws Exception {
+        JsonNode report = request("GET", "/reports/annual-sales?year=2025", null, 200).body();
+        assertEquals(2025, report.get("year").asInt());
+        assertEquals(2026, report.get("forecastYear").asInt());
+        assertTrue(report.get("totals").get("revenue").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("totals").get("profit").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("totals").get("costs").decimalValue().compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(report.get("weeklySalesTrends").size() > 20);
+        assertEquals(12, report.get("monthlyCustomerRetention").size());
+        assertTrue(report.get("bestSellingProducts").size() > 0);
+        assertTrue(report.get("forecasts").toString().contains("projectedRevenue"));
+        assertTrue(report.get("recommendations").size() >= 3);
+
+        request("GET", "/reports/annual-sales?year=not-a-year", null, 400);
     }
 
     private String textId(JsonNode node) {

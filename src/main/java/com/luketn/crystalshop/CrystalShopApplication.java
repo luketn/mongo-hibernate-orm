@@ -22,7 +22,7 @@ public final class CrystalShopApplication implements AutoCloseable {
         SessionFactory sessionFactory = HibernateSupport.createSessionFactory(config);
         MongoIndexBootstrap.createIndexes(config.databaseUrl());
         CrystalShopService service = new CrystalShopService(sessionFactory);
-        CrystalShopReportingService reportingService = new CrystalShopReportingService(sessionFactory);
+        CrystalShopReportingService reportingService = new CrystalShopReportingService(config.databaseUrl());
         CrystalShopServer server = CrystalShopServer.start(config.port(), service, reportingService);
         return new CrystalShopApplication(sessionFactory, server);
     }

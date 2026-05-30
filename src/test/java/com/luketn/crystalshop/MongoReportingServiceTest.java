@@ -26,7 +26,7 @@ class MongoReportingServiceTest {
                 MongoTestSupport.mongoConfig(mongo, "none", 0)
         )) {
             new SampleDataImporter(sessionFactory).importSampleData();
-            AnnualSalesReport report = new CrystalShopReportingService(sessionFactory).annualSalesReport(2025);
+            AnnualSalesReport report = new CrystalShopReportingService(mongo.getReplicaSetUrl()).annualSalesReport(2025);
 
             assertEquals(2025, report.year());
             assertEquals(2026, report.forecastYear());
