@@ -21,7 +21,7 @@ public record SaleView(
     public static SaleView from(Sale sale) {
         List<SaleLineView> lines = sale.getLines().stream().map(SaleLineView::from).toList();
         List<String> lineSummary = sale.getLines().stream()
-                .map(line -> line.getCrystal().getSku() + " x" + line.getQuantity())
+                .map(line -> line.getCrystalSku() + " x" + line.getQuantity())
                 .toList();
         BigDecimal total = sale.getLines().stream()
                 .map(line -> line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())))
@@ -29,12 +29,36 @@ public record SaleView(
 
         return new SaleView(
                 ApiIds.toString(sale.getId()),
-                ApiIds.toString(sale.getStore().getId()),
-                sale.getStore().getCode(),
-                sale.getStore().getName(),
-                ApiIds.toString(sale.getCustomer().getId()),
-                sale.getCustomer().getEmail(),
-                sale.getCustomer().getName(),
+                ApiIds.toString(sale.getStoreId()),
+                sale.getStore() == null ? null : sale.getStore().getCode(),
+                sale.getStore() == null ? null : sale.getStore().getName(),
+                ApiIds.toString(sale.getCustomerId()),
+                sale.getCustomer() == null ? null : sale.getCustomer().getEmail(),
+                sale.getCustomer() == null ? null : sale.getCustomer().getName(),
+                sale.getSoldAt().toString(),
+                lines,
+                lineSummary,
+                total
+        );
+    }
+
+    public static SaleView from(Sale sale, StoreView store, CustomerView customer) {
+        List<SaleLineView> lines = sale.getLines().stream().map(SaleLineView::from).toList();
+        List<String> lineSummary = sale.getLines().stream()
+                .map(line -> line.getCrystalSku() + " x" + line.getQuantity())
+                .toList();
+        BigDecimal total = sale.getLines().stream()
+                .map(line -> line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new SaleView(
+                ApiIds.toString(sale.getId()),
+                ApiIds.toString(sale.getStoreId()),
+                store.code(),
+                store.name(),
+                ApiIds.toString(sale.getCustomerId()),
+                customer.email(),
+                customer.name(),
                 sale.getSoldAt().toString(),
                 lines,
                 lineSummary,

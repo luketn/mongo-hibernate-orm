@@ -16,9 +16,9 @@ public record SaleLineView(
     public static SaleLineView from(SaleLine line) {
         return new SaleLineView(
                 ApiIds.toString(line.getId()),
-                ApiIds.toString(line.getCrystal().getId()),
-                line.getCrystal().getSku(),
-                line.getCrystal().getName(),
+                ApiIds.toString(line.getCrystalId()),
+                line.getCrystalSku(),
+                line.getCrystalName(),
                 line.getQuantity(),
                 line.getUnitPrice(),
                 line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()))

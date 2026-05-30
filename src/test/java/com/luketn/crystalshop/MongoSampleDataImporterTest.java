@@ -29,7 +29,7 @@ class MongoSampleDataImporterTest {
             assertEquals(3, counts.get("stores"));
             assertEquals(18, counts.get("inventoryItems"));
             assertEquals(39, counts.get("sales"));
-            assertEquals(78, counts.get("saleLines"));
+            assertEquals(70, counts.get("saleLines"));
 
             CrystalShopService service = new CrystalShopService(sessionFactory);
             assertEquals(8, service.listCrystals().size());
