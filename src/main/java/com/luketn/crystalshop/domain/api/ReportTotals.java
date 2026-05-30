@@ -10,4 +10,12 @@ public record ReportTotals(
         int salesCount,
         int activeCustomers
 ) {
+    public static final ReportTotals ZERO = new ReportTotals(
+            new BigDecimal("0.00"),
+            new BigDecimal("0.00"),
+            new BigDecimal("0.00"),
+            0,
+            0,
+            0
+    );
 }

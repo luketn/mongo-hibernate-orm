@@ -110,17 +110,7 @@ public class CrystalShopReportingService {
                 ), ReportTotals.class)
                 .first();
 
-        if (result == null) {
-            return new ReportTotals(
-                    money(BigDecimal.ZERO),
-                    money(BigDecimal.ZERO),
-                    money(BigDecimal.ZERO),
-                    0,
-                    0,
-                    0
-            );
-        }
-        return reportTotals(result);
+        return result == null ? ReportTotals.ZERO : result;
     }
 
     private List<WeeklySalesTrend> weeklySalesTrends(MongoDatabase database, ReportWindow window) {
@@ -314,17 +304,6 @@ public class CrystalShopReportingService {
 
     private BigDecimal money(BigDecimal value) {
         return value.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private ReportTotals reportTotals(ReportTotals totals) {
-        return new ReportTotals(
-                money(totals.revenue()),
-                money(totals.profit()),
-                money(totals.costs()),
-                totals.unitsSold(),
-                totals.salesCount(),
-                totals.activeCustomers()
-        );
     }
 
     private WeeklySalesTrend weeklySalesTrend(WeeklySalesTrend trend) {
