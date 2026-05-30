@@ -3,11 +3,11 @@ package com.luketn.crystalshop.domain.api;
 import com.luketn.crystalshop.domain.database.InventoryItem;
 
 public record InventoryItemView(
-        Long id,
-        Long storeId,
+        String id,
+        String storeId,
         String storeCode,
         String storeName,
-        Long crystalId,
+        String crystalId,
         String crystalSku,
         String crystalName,
         int quantity,
@@ -15,11 +15,11 @@ public record InventoryItemView(
 ) {
     public static InventoryItemView from(InventoryItem item) {
         return new InventoryItemView(
-                item.getId(),
-                item.getStore().getId(),
+                ApiIds.toString(item.getId()),
+                ApiIds.toString(item.getStore().getId()),
                 item.getStore().getCode(),
                 item.getStore().getName(),
-                item.getCrystal().getId(),
+                ApiIds.toString(item.getCrystal().getId()),
                 item.getCrystal().getSku(),
                 item.getCrystal().getName(),
                 item.getQuantity(),

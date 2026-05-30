@@ -6,11 +6,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record SaleView(
-        Long id,
-        Long storeId,
+        String id,
+        String storeId,
         String storeCode,
         String storeName,
-        Long customerId,
+        String customerId,
         String customerEmail,
         String customerName,
         String soldAt,
@@ -28,11 +28,11 @@ public record SaleView(
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return new SaleView(
-                sale.getId(),
-                sale.getStore().getId(),
+                ApiIds.toString(sale.getId()),
+                ApiIds.toString(sale.getStore().getId()),
                 sale.getStore().getCode(),
                 sale.getStore().getName(),
-                sale.getCustomer().getId(),
+                ApiIds.toString(sale.getCustomer().getId()),
                 sale.getCustomer().getEmail(),
                 sale.getCustomer().getName(),
                 sale.getSoldAt().toString(),

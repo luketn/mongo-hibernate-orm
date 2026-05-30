@@ -132,7 +132,7 @@ public final class CrystalShopServer implements AutoCloseable {
             if (segments.size() == 1) {
                 handleCollection(exchange, method, resource);
             } else {
-                handleItem(exchange, method, resource, parseId(segments.get(1)));
+                handleItem(exchange, method, resource, segments.get(1));
             }
         }
 
@@ -187,7 +187,7 @@ public final class CrystalShopServer implements AutoCloseable {
             }
         }
 
-        private void handleItem(HttpExchange exchange, String method, String resource, long id) throws IOException {
+        private void handleItem(HttpExchange exchange, String method, String resource, String id) throws IOException {
             switch (resource) {
                 case "crystals" -> {
                     if ("GET".equals(method)) {
@@ -293,14 +293,6 @@ public final class CrystalShopServer implements AutoCloseable {
             return Arrays.stream(path.split("/"))
                     .filter(segment -> !segment.isBlank())
                     .toList();
-        }
-
-        private long parseId(String segment) {
-            try {
-                return Long.parseLong(segment);
-            } catch (NumberFormatException e) {
-                throw new ApiException(400, "id must be a long integer");
-            }
         }
 
         private int parseYear(URI uri) {

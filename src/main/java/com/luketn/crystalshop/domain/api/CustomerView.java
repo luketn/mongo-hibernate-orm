@@ -3,14 +3,14 @@ package com.luketn.crystalshop.domain.api;
 import com.luketn.crystalshop.domain.database.Customer;
 
 public record CustomerView(
-        Long id,
+        String id,
         String name,
         String email,
         String loyaltyTier
 ) {
     public static CustomerView from(Customer customer) {
         return new CustomerView(
-                customer.getId(),
+                ApiIds.toString(customer.getId()),
                 customer.getName(),
                 customer.getEmail(),
                 customer.getLoyaltyTier()

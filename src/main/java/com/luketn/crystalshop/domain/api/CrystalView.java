@@ -5,7 +5,7 @@ import com.luketn.crystalshop.domain.database.Crystal;
 import java.math.BigDecimal;
 
 public record CrystalView(
-        Long id,
+        String id,
         String sku,
         String name,
         String family,
@@ -16,7 +16,7 @@ public record CrystalView(
 ) {
     public static CrystalView from(Crystal crystal) {
         return new CrystalView(
-                crystal.getId(),
+                ApiIds.toString(crystal.getId()),
                 crystal.getSku(),
                 crystal.getName(),
                 crystal.getFamily(),
