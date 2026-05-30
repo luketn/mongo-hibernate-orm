@@ -1,32 +1,30 @@
 package com.luketn.crystalshop.domain.database;
 
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Transient;
+import org.bson.types.ObjectId;
 
 @Entity
-@Table(
-        name = "inventory_items",
-        uniqueConstraints = @UniqueConstraint(name = "uk_inventory_store_crystal", columnNames = {"store_id", "crystal_id"})
-)
+@Table(name = "inventory")
 public class InventoryItem {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @ObjectIdGenerator
+    private ObjectId id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "store_id", nullable = false)
+    @Column(nullable = false)
+    private ObjectId storeId;
+
+    @Column(nullable = false)
+    private ObjectId crystalId;
+
+    @Transient
     private Store store;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "crystal_id", nullable = false)
+    @Transient
     private Crystal crystal;
 
     @Column(nullable = false)
@@ -39,14 +37,38 @@ public class InventoryItem {
     }
 
     public InventoryItem(Store store, Crystal crystal, int quantity, String shelfLocation) {
+        this(store.getId(), crystal.getId(), quantity, shelfLocation);
         this.store = store;
         this.crystal = crystal;
+    }
+
+    public InventoryItem(ObjectId storeId, ObjectId crystalId, int quantity, String shelfLocation) {
+        this.storeId = storeId;
+        this.crystalId = crystalId;
         this.quantity = quantity;
         this.shelfLocation = shelfLocation;
     }
 
-    public Long getId() {
+    public ObjectId getId() {
         return id;
+    }
+
+    public ObjectId getStoreId() {
+        return storeId;
+    }
+
+    public void setStoreId(ObjectId storeId) {
+        this.storeId = storeId;
+        this.store = null;
+    }
+
+    public ObjectId getCrystalId() {
+        return crystalId;
+    }
+
+    public void setCrystalId(ObjectId crystalId) {
+        this.crystalId = crystalId;
+        this.crystal = null;
     }
 
     public Store getStore() {
@@ -54,6 +76,7 @@ public class InventoryItem {
     }
 
     public void setStore(Store store) {
+        this.storeId = store.getId();
         this.store = store;
     }
 
@@ -62,6 +85,7 @@ public class InventoryItem {
     }
 
     public void setCrystal(Crystal crystal) {
+        this.crystalId = crystal.getId();
         this.crystal = crystal;
     }
 
