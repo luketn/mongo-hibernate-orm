@@ -92,7 +92,7 @@ public class CrystalShopReportingService {
     }
 
     private ReportTotals totals(MongoDatabase database, ReportWindow window) {
-        List<Document> rows = database.getCollection("sales")
+        ReportTotals result = database.getCollection("sales")
                 .aggregate(yearlyLinePipeline(
                         window,
                         group(null,
@@ -107,21 +107,20 @@ public class CrystalShopReportingService {
                                 include("revenue", "profit", "costs", "unitsSold"),
                                 computed("salesCount", arraySize("saleIds")),
                                 computed("activeCustomers", arraySize("customerIds"))))
-                ))
-                .into(new ArrayList<>());
+                ), ReportTotals.class)
+                .first();
 
-        if (rows.isEmpty()) {
-            return new ReportTotals(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0);
+        if (result == null) {
+            return new ReportTotals(
+                    money(BigDecimal.ZERO),
+                    money(BigDecimal.ZERO),
+                    money(BigDecimal.ZERO),
+                    0,
+                    0,
+                    0
+            );
         }
-        Document row = rows.getFirst();
-        return new ReportTotals(
-                money(decimal(row.get("revenue"))),
-                money(decimal(row.get("profit"))),
-                money(decimal(row.get("costs"))),
-                integer(row.get("unitsSold")),
-                integer(row.get("salesCount")),
-                integer(row.get("activeCustomers"))
-        );
+        return reportTotals(result);
     }
 
     private List<WeeklySalesTrend> weeklySalesTrends(MongoDatabase database, ReportWindow window) {
@@ -142,17 +141,10 @@ public class CrystalShopReportingService {
                                 computed("crystalSku", string("_id", "crystalSku")),
                                 computed("crystalName", string("_id", "crystalName")),
                                 include("unitsSold", "revenue", "profit")))
-                ))
+                ), WeeklySalesTrend.class)
                 .into(new ArrayList<>())
                 .stream()
-                .map(row -> new WeeklySalesTrend(
-                        row.getString("weekStart"),
-                        row.getString("crystalSku"),
-                        row.getString("crystalName"),
-                        integer(row.get("unitsSold")),
-                        money(decimal(row.get("revenue"))),
-                        money(decimal(row.get("profit")))
-                ))
+                .map(this::weeklySalesTrend)
                 .toList();
     }
 
@@ -201,17 +193,10 @@ public class CrystalShopReportingService {
                                 computed("crystalSku", string("_id", "crystalSku")),
                                 computed("crystalName", string("_id", "crystalName")),
                                 include("unitsSold", "revenue", "profit", "margin")))
-                ))
+                ), ProductSalesInsight.class)
                 .into(new ArrayList<>())
                 .stream()
-                .map(row -> new ProductSalesInsight(
-                        row.getString("crystalSku"),
-                        row.getString("crystalName"),
-                        integer(row.get("unitsSold")),
-                        money(decimal(row.get("revenue"))),
-                        money(decimal(row.get("profit"))),
-                        decimal(row.get("margin")).setScale(4, RoundingMode.HALF_UP)
-                ))
+                .map(this::productSalesInsight)
                 .toList();
     }
 
@@ -223,7 +208,7 @@ public class CrystalShopReportingService {
                         set(new Field<>("growthRate", growthRate())),
                         set(
                                 new Field<>("projectedRevenue", projectedRevenue()),
-                                new Field<>("projectedUnits", ceil(projectedUnits()))),
+                                new Field<>("projectedUnits", ceilToInt(projectedUnits()))),
                         sort(descending("projectedRevenue")),
                         limit(5),
                         project(fields(
@@ -232,16 +217,10 @@ public class CrystalShopReportingService {
                                 computed("crystalName", string("_id", "crystalName")),
                                 include("projectedRevenue", "projectedUnits"),
                                 computed("growthRate", number("growthRate").round(of(4)))))
-                ))
+                ), ProductForecast.class)
                 .into(new ArrayList<>())
                 .stream()
-                .map(row -> new ProductForecast(
-                        row.getString("crystalSku"),
-                        row.getString("crystalName"),
-                        money(decimal(row.get("projectedRevenue"))),
-                        integer(row.get("projectedUnits")),
-                        decimal(row.get("growthRate")).setScale(4, RoundingMode.HALF_UP)
-                ))
+                .map(this::productForecast)
                 .toList();
     }
 
@@ -267,8 +246,14 @@ public class CrystalShopReportingService {
                         sum("unitsSold", lineNumber("quantity")),
                         sum("revenue", number("lineRevenue")),
                         sum("profit", number("lineProfit")),
-                        sum("firstHalfRevenue", when(number("saleMonth").lte(of(6)), number("lineRevenue"), of(0))),
-                        sum("secondHalfRevenue", when(number("saleMonth").gt(of(6)), number("lineRevenue"), of(0))))
+                        sum("firstHalfRevenue", when(
+                                number("saleMonth").lte(of(6)),
+                                number("lineRevenue"),
+                                decimal("0"))),
+                        sum("secondHalfRevenue", when(
+                                number("saleMonth").gt(of(6)),
+                                number("lineRevenue"),
+                                decimal("0"))))
         );
         pipeline.addAll(List.of(terminalStages));
         return pipeline;
@@ -331,6 +316,49 @@ public class CrystalShopReportingService {
         return value.setScale(2, RoundingMode.HALF_UP);
     }
 
+    private ReportTotals reportTotals(ReportTotals totals) {
+        return new ReportTotals(
+                money(totals.revenue()),
+                money(totals.profit()),
+                money(totals.costs()),
+                totals.unitsSold(),
+                totals.salesCount(),
+                totals.activeCustomers()
+        );
+    }
+
+    private WeeklySalesTrend weeklySalesTrend(WeeklySalesTrend trend) {
+        return new WeeklySalesTrend(
+                trend.weekStart(),
+                trend.crystalSku(),
+                trend.crystalName(),
+                trend.unitsSold(),
+                money(trend.revenue()),
+                money(trend.profit())
+        );
+    }
+
+    private ProductSalesInsight productSalesInsight(ProductSalesInsight product) {
+        return new ProductSalesInsight(
+                product.crystalSku(),
+                product.crystalName(),
+                product.unitsSold(),
+                money(product.revenue()),
+                money(product.profit()),
+                product.margin().setScale(4, RoundingMode.HALF_UP)
+        );
+    }
+
+    private ProductForecast productForecast(ProductForecast forecast) {
+        return new ProductForecast(
+                forecast.crystalSku(),
+                forecast.crystalName(),
+                money(forecast.projectedRevenue()),
+                forecast.projectedUnits(),
+                forecast.growthRate().setScale(4, RoundingMode.HALF_UP)
+        );
+    }
+
     private Document groupKey(Field<?>... fields) {
         Document key = new Document();
         for (Field<?> field : fields) {
@@ -340,27 +368,31 @@ public class CrystalShopReportingService {
     }
 
     private MqlNumber margin() {
-        return when(number("revenue").eq(of(0)), of(0), number("profit").divide(number("revenue")));
+        return when(
+                number("revenue").eq(decimal("0")),
+                decimal("0"),
+                number("profit").divide(number("revenue"))
+        );
     }
 
     private MqlNumber rawGrowthRate() {
         return when(
-                number("firstHalfRevenue").eq(of(0)),
-                of(0.08),
+                number("firstHalfRevenue").eq(decimal("0")),
+                decimal("0.08"),
                 number("secondHalfRevenue").subtract(number("firstHalfRevenue")).divide(number("firstHalfRevenue"))
         );
     }
 
     private MqlNumber growthRate() {
-        return number("rawGrowthRate").min(of(0.35)).max(of(-0.15));
+        return number("rawGrowthRate").min(decimal("0.35")).max(decimal("-0.15"));
     }
 
     private MqlNumber projectedRevenue() {
-        return number("revenue").multiply(number("growthRate").add(1)).round(of(2));
+        return number("revenue").multiply(number("growthRate").add(decimal("1"))).round(of(2));
     }
 
     private MqlNumber projectedUnits() {
-        return number("unitsSold").multiply(number("growthRate").add(1));
+        return number("unitsSold").multiply(number("growthRate").add(decimal("1")));
     }
 
     private MqlNumber lineRevenue() {
@@ -412,6 +444,10 @@ public class CrystalShopReportingService {
         return current().getDocument("lines").getString(fieldName);
     }
 
+    private MqlNumber decimal(String value) {
+        return of(Decimal128.parse(value));
+    }
+
     private Document dateTrunc(MqlDate date, String unit) {
         return operator("$dateTrunc", new Document("date", date)
                 .append("unit", unit)
@@ -419,38 +455,12 @@ public class CrystalShopReportingService {
                 .append("timezone", "UTC"));
     }
 
-    private Document ceil(MqlNumber expression) {
-        return operator("$ceil", expression);
+    private Document ceilToInt(MqlNumber expression) {
+        return operator("$toInt", operator("$ceil", expression));
     }
 
     private Document operator(String operator, Object expression) {
         return new Document(operator, expression);
-    }
-
-    private BigDecimal decimal(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        if (value instanceof BigDecimal decimal) {
-            return decimal;
-        }
-        if (value instanceof Decimal128 decimal) {
-            return decimal.bigDecimalValue();
-        }
-        if (value instanceof Number number) {
-            return BigDecimal.valueOf(number.doubleValue());
-        }
-        return new BigDecimal(value.toString());
-    }
-
-    private int integer(Object value) {
-        if (value == null) {
-            return 0;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        return Integer.parseInt(value.toString());
     }
 
     private Instant instant(Object value) {
