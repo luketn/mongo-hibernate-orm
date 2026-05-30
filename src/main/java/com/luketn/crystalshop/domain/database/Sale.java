@@ -1,19 +1,16 @@
 package com.luketn.crystalshop.domain.database;
 
-import jakarta.persistence.CascadeType;
+import com.mongodb.hibernate.annotations.ObjectIdGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+import org.bson.types.ObjectId;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,35 +18,65 @@ import java.util.List;
 @Table(name = "sales")
 public class Sale {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @ObjectIdGenerator
+    private ObjectId id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "store_id", nullable = false)
+    @Column(nullable = false)
+    private ObjectId storeId;
+
+    @Column(nullable = false)
+    private ObjectId customerId;
+
+    @Transient
     private Store store;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false)
+    @Transient
     private Customer customer;
 
-    @Column(name = "sold_at", nullable = false)
-    private LocalDateTime soldAt;
+    @Column(nullable = false)
+    private Instant soldAt;
 
-    @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("id")
     private List<SaleLine> lines = new ArrayList<>();
 
     protected Sale() {
     }
 
     public Sale(Store store, Customer customer, LocalDateTime soldAt) {
+        this(store, customer, toInstant(soldAt));
+    }
+
+    public Sale(Store store, Customer customer, Instant soldAt) {
+        this(store.getId(), customer.getId(), soldAt);
         this.store = store;
         this.customer = customer;
+    }
+
+    public Sale(ObjectId storeId, ObjectId customerId, Instant soldAt) {
+        this.storeId = storeId;
+        this.customerId = customerId;
         this.soldAt = soldAt;
     }
 
-    public Long getId() {
+    public ObjectId getId() {
         return id;
+    }
+
+    public ObjectId getStoreId() {
+        return storeId;
+    }
+
+    public void setStoreId(ObjectId storeId) {
+        this.storeId = storeId;
+        this.store = null;
+    }
+
+    public ObjectId getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(ObjectId customerId) {
+        this.customerId = customerId;
+        this.customer = null;
     }
 
     public Store getStore() {
@@ -57,6 +84,7 @@ public class Sale {
     }
 
     public void setStore(Store store) {
+        this.storeId = store.getId();
         this.store = store;
     }
 
@@ -65,15 +93,20 @@ public class Sale {
     }
 
     public void setCustomer(Customer customer) {
+        this.customerId = customer.getId();
         this.customer = customer;
     }
 
-    public LocalDateTime getSoldAt() {
+    public Instant getSoldAt() {
         return soldAt;
     }
 
-    public void setSoldAt(LocalDateTime soldAt) {
+    public void setSoldAt(Instant soldAt) {
         this.soldAt = soldAt;
+    }
+
+    public void setSoldAt(LocalDateTime soldAt) {
+        this.soldAt = toInstant(soldAt);
     }
 
     public List<SaleLine> getLines() {
@@ -81,11 +114,14 @@ public class Sale {
     }
 
     public void addLine(SaleLine line) {
-        line.setSale(this);
         lines.add(line);
     }
 
     public void clearLines() {
         lines.clear();
+    }
+
+    private static Instant toInstant(LocalDateTime soldAt) {
+        return soldAt.atOffset(ZoneOffset.UTC).toInstant();
     }
 }

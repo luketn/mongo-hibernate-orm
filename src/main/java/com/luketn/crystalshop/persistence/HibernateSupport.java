@@ -5,7 +5,6 @@ import com.luketn.crystalshop.domain.database.Crystal;
 import com.luketn.crystalshop.domain.database.Customer;
 import com.luketn.crystalshop.domain.database.InventoryItem;
 import com.luketn.crystalshop.domain.database.Sale;
-import com.luketn.crystalshop.domain.database.SaleLine;
 import com.luketn.crystalshop.domain.database.Store;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
@@ -26,8 +25,7 @@ public final class HibernateSupport {
                 Customer.class,
                 Store.class,
                 InventoryItem.class,
-                Sale.class,
-                SaleLine.class
+                Sale.class
         );
     }
 
