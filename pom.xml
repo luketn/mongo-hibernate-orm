@@ -13,7 +13,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
 
-        <hibernate.version>7.3.3.Final</hibernate.version>
+        <hibernate.version>6.6.34.Final</hibernate.version>
         <mongodb.hibernate.version>1.0.0-alpha0</mongodb.hibernate.version>
         <postgresql.version>42.7.11</postgresql.version>
         <jackson.version>2.21.3</jackson.version>
